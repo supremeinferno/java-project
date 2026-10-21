@@ -4,10 +4,19 @@ import java.awt.Dimension;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
+import java.util.regex.Pattern;
+
 import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.RowFilter;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 
 import Bank.BankAccount;
 import Data.FileIO;
@@ -31,7 +40,30 @@ public class DisplayList extends JFrame {
 		setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
 		JTable table = new JTable(model);
-		table.setAutoCreateRowSorter(true);
+		TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<DefaultTableModel>(model);
+		table.setRowSorter(sorter);
+
+		JTextField search = new JTextField(25);
+		search.getDocument().addDocumentListener(new DocumentListener() {
+			@Override
+			public void insertUpdate(DocumentEvent e) {
+				filter(sorter, search.getText());
+			}
+
+			@Override
+			public void removeUpdate(DocumentEvent e) {
+				filter(sorter, search.getText());
+			}
+
+			@Override
+			public void changedUpdate(DocumentEvent e) {
+				filter(sorter, search.getText());
+			}
+		});
+		JPanel searchBar = new JPanel();
+		searchBar.add(new JLabel("Search:"));
+		searchBar.add(search);
+		add(searchBar, BorderLayout.NORTH);
 		add(new JScrollPane(table), BorderLayout.CENTER);
 		setPreferredSize(new Dimension(750, 420));
 		pack();
@@ -44,6 +76,12 @@ public class DisplayList extends JFrame {
 			}
 		});
 		reload();
+	}
+
+	private static void filter(TableRowSorter<DefaultTableModel> sorter, String text)
+	{
+		String query = text.trim();
+		sorter.setRowFilter(query.isEmpty() ? null : RowFilter.regexFilter("(?i)" + Pattern.quote(query)));
 	}
 
 	private void reload()
