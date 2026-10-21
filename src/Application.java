@@ -1,20 +1,12 @@
-
 import java.awt.EventQueue;
 
-import GUI.GUIForm;
+import Data.FileIO;
+import GUI.Login;
 
 public class Application {
-	public static void main(String[] args) 
-		{
-			EventQueue.invokeLater(new Runnable() {
-				public void run() {
-					try {
-						
-						GUIForm.login.frame.setVisible(true);
-					} catch (Exception e) {
-						
-					}
-				}
-			});
-		}
+	public static void main(String[] args)
+	{
+		FileIO.load();
+		EventQueue.invokeLater(() -> new Login().setVisible(true));
+	}
 }

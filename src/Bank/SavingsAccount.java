@@ -1,42 +1,52 @@
 package Bank;
+import Exceptions.InvalidAmount;
 import Exceptions.MaxBalance;
 import Exceptions.MaxWithdraw;
 
 public class SavingsAccount extends BankAccount {
 
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
-	float rate= .05f;
-	double maxWithLimit;
-//	String type;
-	
-	public SavingsAccount(String name, double balance,double maxWithLimit) {
-		super(name, balance, 2000);
-		this.maxWithLimit= maxWithLimit;
-//		this.type="Savings Account";
+	private static final long serialVersionUID = 2L;
+	private static final float RATE = .05f;
+	private final double maxWithLimit;
+
+	public SavingsAccount(String accNum, String name, double balance, double maxWithLimit) {
+		this(accNum, name, balance, maxWithLimit, AccountType.SAVINGS.getMinBalance());
 	}
-	
+
+	protected SavingsAccount(String accNum, String name, double balance, double maxWithLimit, double minBalance) {
+		super(accNum, name, balance, minBalance);
+		if (Double.isNaN(maxWithLimit) || maxWithLimit <= 0) {
+			throw new IllegalArgumentException("Maximum withdraw limit must be greater than zero");
+		}
+		this.maxWithLimit = maxWithLimit;
+	}
+
 	public double getNetBalance()
 	{
-		double NetBalance= getbalance()+(getbalance()*rate);
-		return NetBalance;
+		return getBalance() * (1 + RATE);
 	}
-	
-	public void withdraw(double amount) throws MaxWithdraw, MaxBalance
+
+	public double getMaxWithLimit() {
+		return maxWithLimit;
+	}
+
+	@Override
+	public void withdraw(double amount) throws InvalidAmount, MaxWithdraw, MaxBalance
 	{
-		if(amount<maxWithLimit)
+		if (amount > maxWithLimit)
 		{
-			super.withdraw(amount);
-			
+			throw new MaxWithdraw("Maximum Withdraw Limit Exceeded (" + maxWithLimit + ")");
 		}
-		else
-		{
-			throw new MaxWithdraw("Maximum Withdraw Limit Exceed");
-		}
-		
+		super.withdraw(amount);
 	}
-	
-	
+
+	@Override
+	public AccountType getType() {
+		return AccountType.SAVINGS;
+	}
+
+	@Override
+	public String getDetails() {
+		return "Withdraw limit: " + maxWithLimit;
+	}
 }

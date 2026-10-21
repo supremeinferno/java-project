@@ -1,153 +1,103 @@
 package Bank;
 import java.io.Serializable;
-import javax.swing.DefaultListModel;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+
 import Exceptions.AccNotFound;
 import Exceptions.InvalidAmount;
 import Exceptions.MaxBalance;
 import Exceptions.MaxWithdraw;
 
 public class Bank implements Serializable {
+
+	private static final long serialVersionUID = 2L;
+	private static final int FIRST_ACCOUNT_NUMBER = 10000;
+
+	private final LinkedHashMap<String, BankAccount> accounts = new LinkedHashMap<String, BankAccount>();
+	private int nextAccountNumber = FIRST_ACCOUNT_NUMBER;
+
 	/**
-	 * 
+	 * Opens an account of the given type. {@code extra} is the type-specific value:
+	 * withdraw limit (savings), trade license (current) or institution (student).
+	 *
+	 * @throws IllegalArgumentException if any value is invalid
 	 */
-	private static final long serialVersionUID = 1L;
-	private BankAccount[] accounts= new BankAccount[100];
-	public int addAccount(BankAccount acc)
+	public BankAccount openAccount(AccountType type, String name, double balance, String extra)
 	{
-		int i=0;
-		for(i=0;i<100;i++)
+		String accNum = newAccountNumber();
+		BankAccount acc;
+		switch (type)
 		{
-			if(getAccounts()[i]==null)
-			{
-				break;
-			}
+		case SAVINGS:
+			acc = new SavingsAccount(accNum, name, balance, parseLimit(extra));
+			break;
+		case CURRENT:
+			acc = new CurrentAccount(accNum, name, balance, extra);
+			break;
+		case STUDENT:
+			acc = new StudentAccount(accNum, name, balance, extra);
+			break;
+		default:
+			throw new IllegalArgumentException("Unknown account type: " + type);
 		}
-		getAccounts()[i]=acc;
-		return i;
+		accounts.put(accNum, acc);
+		nextAccountNumber++;
+		return acc;
 	}
-	
-	public int addAccount(String name, double balance, double maxWithLimit )
+
+	private String newAccountNumber()
 	{
-		SavingsAccount acc=new SavingsAccount(name, balance, maxWithLimit);
-		return this.addAccount(acc);
-	}
-	
-	public int addAccount(String name, double balance, String tradeLicense) throws Exception
-	{
-		CurrentAccount acc = new CurrentAccount(name, balance,tradeLicense);
-		return this.addAccount(acc);
-	}
-	
-	public int addAccount(String name, String  institutionName, double balance, double min_balance)
-	{
-		StudentAccount acc= new StudentAccount(name,balance,institutionName);
-		return this.addAccount(acc);
-	}
-	
-	public BankAccount findAccount(String aacountNum)
-	{
-		int i;
-		for(i=0;i<100;i++)
+		while (accounts.containsKey(String.valueOf(nextAccountNumber)))
 		{
-			if(getAccounts()[i]==null)
-			{
-				break;
-			}
-			if(getAccounts()[i].acc_num.equals(aacountNum))
-			{
-				return getAccounts()[i];
-			}
-			
+			nextAccountNumber++;
 		}
-		return null;
+		return String.valueOf(nextAccountNumber);
 	}
-	
-	public void deposit(String aacountNum, double amt) throws InvalidAmount,AccNotFound
-	
+
+	private static double parseLimit(String text)
 	{
-		if(amt<0)
+		try
 		{
-			throw new InvalidAmount("Invalid Deposit amount");
+			return Double.parseDouble(text.trim());
 		}
-		BankAccount temp=findAccount(aacountNum);
-		if(temp==null)
+		catch (RuntimeException e)
+		{
+			throw new IllegalArgumentException("Maximum withdraw limit must be a number");
+		}
+	}
+
+	public BankAccount findAccount(String accountNum)
+	{
+		return accountNum == null ? null : accounts.get(accountNum.trim());
+	}
+
+	private BankAccount getAccount(String accountNum) throws AccNotFound
+	{
+		BankAccount acc = findAccount(accountNum);
+		if (acc == null)
 		{
 			throw new AccNotFound("Account Not Found");
 		}
-		if(temp!=null)
-		{
-			temp.deposit(amt);
-			
-		}
-		
-	}
-	
-	
-	public void withdraw(String aacountNum, double amt) throws MaxBalance,AccNotFound, MaxWithdraw, InvalidAmount
-	{
-		BankAccount temp=findAccount(aacountNum);
-		
-		if(temp==null)
-		{
-			throw new AccNotFound("Account Not Found");
-		}
-		
-		if(amt<=0)
-		{
-			throw new InvalidAmount("Invalid Amount");
-		}
-		
-		if(amt>temp.getbalance())
-		{
-			throw new MaxBalance("Insufficient Balance");
-		}
-		if(temp!=null)
-		{
-			temp.withdraw(amt);
-		}
-	}
-	
-	public DefaultListModel<String> display()
-	{
-		DefaultListModel<String> list=new DefaultListModel<String>();
-		int i;
-//		String type=null;
-	
-		for(i=0;i<100;i++)
-		{
-			if(getAccounts()[i]==null)
-			{
-				break;
-			}
-//			if(getAccounts()[i].getClass().toString().equals("class Bank.SavingsAccount"))
-//			{
-//				type="Type: Savings Account";
-//			}
-//			
-//			else if(getAccounts()[i].getClass().toString().equals("class Bank.CurrentAccount"))
-//			{
-//				type="Type: Current Account";
-//			}
-//			
-//			else if(getAccounts()[i].getClass().toString().equals("class Bank.StudentAccount"))
-//			{
-//				type="Type: Student Account";
-//			}
-			
-			list.addElement(getAccounts()[i].toString());
-			
-			
-		}
-		
-		return list;
+		return acc;
 	}
 
-	public BankAccount[] getAccounts() {
-		return accounts;
+	public void deposit(String accountNum, double amt) throws InvalidAmount, AccNotFound
+	{
+		getAccount(accountNum).deposit(amt);
 	}
 
-	public void setAccounts(BankAccount[] accounts) {
-		this.accounts = accounts;
+	public void withdraw(String accountNum, double amt) throws MaxBalance, AccNotFound, MaxWithdraw, InvalidAmount
+	{
+		getAccount(accountNum).withdraw(amt);
 	}
-	
+
+	/** Read-only view of all accounts in the order they were opened. */
+	public Collection<BankAccount> getAccounts() {
+		return Collections.unmodifiableCollection(accounts.values());
+	}
+
+	public int size() {
+		return accounts.size();
+	}
 }
