@@ -23,15 +23,16 @@ public class WebApplication {
 			System.err.println("Folder " + WebServer.ROOT + " not found. Run this from the project folder.");
 			System.exit(1);
 		}
-		System.out.println("Data: " + FileIO.storage());
 		try
 		{
+			System.out.println("Data: " + FileIO.storage());
 			FileIO.load();
 		}
-		catch (IllegalStateException e)
+		catch (IllegalStateException | ExceptionInInitializerError e)
 		{
 			// refuse to start rather than run with an empty bank that would overwrite the saved one
-			System.err.println(e.getMessage());
+			Throwable cause = e instanceof ExceptionInInitializerError && e.getCause() != null ? e.getCause() : e;
+			System.err.println("Could not start: " + cause.getMessage());
 			System.exit(1);
 		}
 		if (FileIO.bank.size() == 0 && FileIO.bank.getTransactions().isEmpty() && "true".equals(System.getenv("DEMO_DATA")))
