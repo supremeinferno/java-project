@@ -1,7 +1,8 @@
 .DS_Store
-data
-data.old
-data.tmp
+# the bank's data file, in the project root only (a bare "data" also matched src/Data on macOS)
+/data
+/data.old
+/data.tmp
 
 # compiled classes: build with javac (see README)
 bin/
