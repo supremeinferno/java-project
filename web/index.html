@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Banking System</title>
+	<meta name="description" content="Banking System: open accounts, deposit, withdraw, transfer and track every transaction.">
+	<meta name="theme-color" content="#0b1324">
+	<link rel="icon" href="favicon.svg" type="image/svg+xml">
+	<link rel="stylesheet" href="style.css">
+	<script>
+		// apply the saved theme before the page paints, so there is no flash
+		try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+	</script>
+</head>
+<body>
+
+<!-- icons, used as <svg class="icon"><use href="#i-name"/></svg> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+	<symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+	<symbol id="i-accounts" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.9.7 3.1 2.4 3.5 5.2"/></symbol>
+	<symbol id="i-activity" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+	<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+	<symbol id="i-in" viewBox="0 0 24 24"><path d="M12 4v13M6 11l6 6 6-6M5 20h14"/></symbol>
+	<symbol id="i-out" viewBox="0 0 24 24"><path d="M12 20V7M6 13l6-6 6 6M5 4h14"/></symbol>
+	<symbol id="i-transfer" viewBox="0 0 24 24"><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/></symbol>
+	<symbol id="i-open" viewBox="0 0 24 24"><path d="M3 10 12 4l9 6M5 10v9M19 10v9M9.5 10v9M14.5 10v9M3 21h18"/></symbol>
+	<symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+	<symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></symbol>
+	<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+	<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+	<symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></symbol>
+	<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+	<symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+	<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+	<symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+</svg>
+
+<!-- ================= login ================= -->
+<main id="login-view" class="login" hidden>
+	<section class="login-hero">
+		<canvas id="login-canvas" aria-hidden="true"></canvas>
+		<div class="brand"><span class="brand-mark" aria-hidden="true"></span>Banking System</div>
+		<div class="login-copy">
+			<h1>Banking, <span>simplified.</span></h1>
+			<p>Open accounts, move money between them and see every transaction, all in one place.</p>
+			<ul class="points">
+				<li>Savings, Current &amp; Student accounts</li>
+				<li>Instant transfers</li>
+				<li>Full transaction history</li>
+			</ul>
+		</div>
+	</section>
+	<section class="login-panel">
+		<form id="login-form" class="login-card" autocomplete="off">
+			<h2>Welcome back</h2>
+			<p class="muted">Log in to the bank's admin console.</p>
+			<p class="form-error" id="login-error" role="alert"></p>
+			<label class="field">
+				<span>Username</span>
+				<input name="username" value="admin" required>
+			</label>
+			<label class="field">
+				<span>Password</span>
+				<input name="password" type="password" required>
+			</label>
+			<button class="btn btn-primary btn-lg btn-block" type="submit">Log in</button>
+			<p class="hint">Demo login: <code>admin</code> / <code>admin</code></p>
+		</form>
+	</section>
+</main>
+
+<!-- ================= app ================= -->
+<div id="app-view" class="shell" hidden>
+	<aside class="sidebar">
+		<div class="brand"><span class="brand-mark" aria-hidden="true"></span>Banking System</div>
+		<nav class="nav" aria-label="Main">
+			<div class="nav-group">
+				<span class="nav-label">Overview</span>
+				<a href="#dashboard" data-route="dashboard"><svg class="icon"><use href="#i-dashboard"/></svg>Dashboard</a>
+				<a href="#accounts" data-route="accounts"><svg class="icon"><use href="#i-accounts"/></svg>Accounts</a>
+				<a href="#activity" data-route="activity"><svg class="icon"><use href="#i-activity"/></svg>Activity</a>
+			</div>
+			<div class="nav-group">
+				<span class="nav-label">Money</span>
+				<a href="#deposit" data-route="deposit"><svg class="icon"><use href="#i-in"/></svg>Deposit</a>
+				<a href="#withdraw" data-route="withdraw"><svg class="icon"><use href="#i-out"/></svg>Withdraw</a>
+				<a href="#transfer" data-route="transfer"><svg class="icon"><use href="#i-transfer"/></svg>Transfer</a>
+			</div>
+			<div class="nav-group">
+				<span class="nav-label">Manage</span>
+				<a href="#open" data-route="open"><svg class="icon"><use href="#i-open"/></svg>Open account</a>
+			</div>
+		</nav>
+		<div class="sidebar-foot">
+			<span class="avatar" aria-hidden="true">A</span>
+			<div><b>admin</b><span>Bank manager</span></div>
+			<button id="logout" title="Log out" aria-label="Log out"><svg class="icon"><use href="#i-logout"/></svg></button>
+		</div>
+	</aside>
+
+	<div class="main">
+		<header class="topbar">
+			<div class="jump">
+				<svg class="icon"><use href="#i-search"/></svg>
+				<input id="jump" type="search" placeholder="Find an account by name or number" autocomplete="off"
+					role="combobox" aria-expanded="false" aria-controls="jump-results" aria-label="Find an account">
+				<kbd>/</kbd>
+				<ul class="jump-results" id="jump-results" role="listbox"></ul>
+			</div>
+			<span class="topbar-spacer"></span>
+			<button class="icon-btn" id="theme-toggle" aria-label="Switch theme" title="Switch light / dark theme">
+				<svg class="icon"><use href="#i-moon"/></svg>
+			</button>
+		</header>
+
+		<main class="content">
+
+			<!-- ===== dashboard ===== -->
+			<section data-view="dashboard" hidden>
+				<div class="hero">
+					<div class="hero-text">
+						<span class="eyebrow">Total holdings</span>
+						<div class="hero-value" id="hero-total">₹0</div>
+						<div class="hero-meta">
+							<div><span>Accounts</span><b id="hero-count">0</b></div>
+							<div><span>Average balance</span><b id="hero-avg">₹0</b></div>
+							<div><span>Transactions today</span><b id="hero-today">0</b></div>
+						</div>
+						<div class="hero-actions">
+							<a class="btn btn-primary" href="#open"><svg class="icon"><use href="#i-plus"/></svg>Open account</a>
+							<a class="btn" href="#transfer"><svg class="icon"><use href="#i-transfer"/></svg>Transfer</a>
+							<a class="btn" href="#deposit"><svg class="icon"><use href="#i-in"/></svg>Deposit</a>
+						</div>
+					</div>
+					<figure class="hero-3d" style="margin:0">
+						<canvas id="tower-canvas" aria-label="3D view: one tower per account, height shows balance"></canvas>
+						<div class="hero-legend" id="hero-legend"></div>
+						<figcaption>Each tower is an account, taller means more money. Drag to turn, click a tower to open it.</figcaption>
+					</figure>
+				</div>
+
+				<div class="dash-grid">
+					<div class="card">
+						<div class="card-head">
+							<div>
+								<h2>Money in &amp; out</h2>
+								<p>Last 14 days. Deposits above the line, withdrawals below. Transfers between accounts are not counted.</p>
+							</div>
+							<div class="legend">
+								<span><i style="background:var(--in)"></i>In</span>
+								<span><i style="background:var(--out)"></i>Out</span>
+							</div>
+						</div>
+						<div class="chart" id="flow-chart"></div>
+					</div>
+					<div class="card">
+						<div class="card-head">
+							<div>
+								<h2>Holdings by type</h2>
+								<p>Share of all money in the bank</p>
+							</div>
+						</div>
+						<div class="type-list" id="type-list"></div>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<h2>Recent activity</h2>
+						<a href="#activity">View all</a>
+					</div>
+					<ul class="feed" id="recent-feed"></ul>
+				</div>
+			</section>
+
+			<!-- ===== accounts ===== -->
+			<section data-view="accounts" hidden>
+				<div class="page-head">
+					<div>
+						<h1>Accounts</h1>
+						<p class="muted">Click an account to see its card and history. Click a heading to sort.</p>
+					</div>
+					<div class="form-actions">
+						<button class="btn" id="export-csv"><svg class="icon"><use href="#i-download"/></svg>Export CSV</button>
+						<a class="btn btn-primary" href="#open"><svg class="icon"><use href="#i-plus"/></svg>Open account</a>
+					</div>
+				</div>
+				<div class="card card-flush">
+					<div class="toolbar">
+						<div class="search">
+							<svg class="icon"><use href="#i-search"/></svg>
+							<input type="search" id="acc-search" placeholder="Search name, number, details…" aria-label="Search accounts">
+						</div>
+						<div class="chips" id="type-filter" role="group" aria-label="Filter by type"></div>
+					</div>
+					<div class="table-wrap"><table id="accounts-table"></table></div>
+					<div class="table-foot" id="accounts-foot"></div>
+				</div>
+			</section>
+
+			<!-- ===== single account ===== -->
+			<section data-view="account" hidden>
+				<a class="back" href="#accounts"><svg class="icon"><use href="#i-back"/></svg>All accounts</a>
+				<div id="account-body"></div>
+			</section>
+
+			<!-- ===== activity ===== -->
+			<section data-view="activity" hidden>
+				<div class="page-head">
+					<div>
+						<h1>Activity</h1>
+						<p class="muted">Every deposit, withdrawal, transfer, opening and closing, newest first.</p>
+					</div>
+				</div>
+				<div class="card card-flush">
+					<div class="toolbar">
+						<div class="search">
+							<svg class="icon"><use href="#i-search"/></svg>
+							<input type="search" id="tx-search" placeholder="Search by name or account number…" aria-label="Search activity">
+						</div>
+						<div class="chips" id="kind-filter" role="group" aria-label="Filter by kind"></div>
+					</div>
+					<div class="table-wrap"><table id="activity-table"></table></div>
+					<div class="table-foot" id="activity-foot"></div>
+				</div>
+			</section>
+
+			<!-- ===== open account ===== -->
+			<section data-view="open" hidden>
+				<div class="page-head">
+					<div>
+						<h1>Open an account</h1>
+						<p class="muted">Pick a type, then fill in the holder's details.</p>
+					</div>
+				</div>
+				<div class="form-layout">
+					<form id="open-form" class="card" autocomplete="off">
+						<fieldset class="type-picker">
+							<legend>Account type</legend>
+							<div class="type-options" id="type-options"></div>
+						</fieldset>
+						<p class="form-error" role="alert"></p>
+						<label class="field">
+							<span>Account holder name</span>
+							<input name="name" required placeholder="e.g. Priya Sharma">
+						</label>
+						<label class="field">
+							<span>Opening deposit</span>
+							<div class="input-prefix"><b>₹</b><input name="balance" type="number" step="0.01" min="0" required></div>
+							<small id="balance-hint"></small>
+						</label>
+						<label class="field">
+							<span id="extra-label">Details</span>
+							<input name="extra" required>
+						</label>
+						<div class="form-actions">
+							<button class="btn btn-primary btn-lg" type="submit">Open account</button>
+							<button class="btn btn-ghost btn-lg" type="reset">Reset</button>
+						</div>
+					</form>
+					<aside class="side-note">
+						<h3>Account rules</h3>
+						<ul id="type-rules"></ul>
+					</aside>
+				</div>
+			</section>
+
+			<!-- ===== deposit / withdraw: one form, like TransactionForm in the Swing app ===== -->
+			<section data-view="money" hidden>
+				<div class="page-head">
+					<div>
+						<h1 id="money-title">Deposit</h1>
+						<p class="muted" id="money-subtitle"></p>
+					</div>
+					<nav class="segmented" aria-label="Deposit or withdraw">
+						<a href="#deposit" data-mode="deposit">Deposit</a>
+						<a href="#withdraw" data-mode="withdraw">Withdraw</a>
+					</nav>
+				</div>
+				<div class="form-layout">
+					<form id="money-form" class="card" autocomplete="off">
+						<p class="form-error" role="alert"></p>
+						<label class="field">
+							<span>Account number</span>
+							<input name="account" inputmode="numeric" required placeholder="e.g. 10001">
+						</label>
+						<div class="preview" data-preview="account" aria-live="polite"></div>
+						<label class="field">
+							<span>Amount</span>
+							<div class="input-prefix"><b>₹</b><input name="amount" type="number" step="0.01" min="0.01" required></div>
+						</label>
+						<div class="form-actions">
+							<button class="btn btn-primary btn-lg" type="submit" id="money-submit">Deposit</button>
+							<button class="btn btn-ghost btn-lg" type="reset">Reset</button>
+						</div>
+					</form>
+					<aside class="side-note" id="money-note"></aside>
+				</div>
+			</section>
+
+			<!-- ===== transfer ===== -->
+			<section data-view="transfer" hidden>
+				<div class="page-head">
+					<div>
+						<h1>Transfer</h1>
+						<p class="muted">Move money from one account to another.</p>
+					</div>
+				</div>
+				<div class="form-layout">
+					<form id="transfer-form" class="card" autocomplete="off">
+						<p class="form-error" role="alert"></p>
+						<label class="field">
+							<span>From account</span>
+							<input name="from" inputmode="numeric" required placeholder="e.g. 10001">
+						</label>
+						<div class="preview" data-preview="from" aria-live="polite"></div>
+						<div class="transfer-arrow" aria-hidden="true"><svg class="icon"><use href="#i-down"/></svg></div>
+						<label class="field">
+							<span>To account</span>
+							<input name="to" inputmode="numeric" required placeholder="e.g. 10002">
+						</label>
+						<div class="preview" data-preview="to" aria-live="polite"></div>
+						<label class="field">
+							<span>Amount</span>
+							<div class="input-prefix"><b>₹</b><input name="amount" type="number" step="0.01" min="0.01" required></div>
+						</label>
+						<div class="form-actions">
+							<button class="btn btn-primary btn-lg" type="submit">Transfer</button>
+							<button class="btn btn-ghost btn-lg" type="reset">Reset</button>
+						</div>
+					</form>
+					<aside class="side-note">
+						<h3>How transfers work</h3>
+						<ul>
+							<li>The sender's minimum balance must stay in the account.</li>
+							<li>Savings and Student accounts have a maximum per withdrawal, and that applies to transfers too.</li>
+							<li>Both accounts get an entry in their history.</li>
+						</ul>
+					</aside>
+				</div>
+			</section>
+
+		</main>
+	</div>
+</div>
+
+<!-- confirm dialog -->
+<div class="modal" id="modal" hidden>
+	<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+		<h2 id="modal-title"></h2>
+		<p id="modal-text"></p>
+		<div class="form-actions">
+			<button class="btn btn-ghost" id="modal-cancel">Cancel</button>
+			<button class="btn btn-danger" id="modal-ok"></button>
+		</div>
+	</div>
+</div>
+
+<div class="tooltip" id="tooltip" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><svg class="icon"><use href="#i-check"/></svg><span></span></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
