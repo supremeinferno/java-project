@@ -133,6 +133,15 @@ public class Bank implements Serializable {
 		transactions.add(new Transaction(transactions.size() + 1, kind, acc, amt, other));
 	}
 
+	/** Re-dates the transactions from index {@code from} on; only DemoData uses this. */
+	void backdate(int from, long time)
+	{
+		for (int i = from; i < transactions.size(); i++)
+		{
+			transactions.set(i, new Transaction(transactions.get(i), time));
+		}
+	}
+
 	/** Read-only view of every transaction, oldest first. */
 	public List<Transaction> getTransactions() {
 		return Collections.unmodifiableList(transactions);

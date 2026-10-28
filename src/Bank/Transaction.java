@@ -51,6 +51,18 @@ public class Transaction implements Serializable {
 		this.otherAccNum = otherAccNum;
 	}
 
+	/** A copy dated {@code time}; used to give demo data a history spread over past days. */
+	Transaction(Transaction t, long time) {
+		this.id = t.id;
+		this.time = time;
+		this.kind = t.kind;
+		this.accNum = t.accNum;
+		this.name = t.name;
+		this.amount = t.amount;
+		this.balanceAfter = t.balanceAfter;
+		this.otherAccNum = t.otherAccNum;
+	}
+
 	public int getId() {
 		return id;
 	}

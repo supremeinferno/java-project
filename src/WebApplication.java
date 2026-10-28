@@ -4,6 +4,7 @@ import java.net.BindException;
 import java.net.URI;
 import java.nio.file.Files;
 
+import Bank.DemoData;
 import Data.FileIO;
 import Web.WebServer;
 
@@ -23,6 +24,13 @@ public class WebApplication {
 			System.exit(1);
 		}
 		FileIO.load();
+		if (FileIO.bank.size() == 0 && "true".equals(System.getenv("DEMO_DATA")))
+		{
+			// a fresh public deployment starts with demo accounts instead of an empty bank
+			FileIO.bank = DemoData.create();
+			FileIO.save();
+			System.out.println("Loaded demo data: " + FileIO.bank.size() + " accounts");
+		}
 		try
 		{
 			new WebServer(port).start();

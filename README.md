@@ -118,6 +118,7 @@ All settings are environment variables:
 | `ADMIN_PASSWORD` | `admin` | Login password. **Always set this on a public server.** |
 | `PORT` | `8080` | Port to listen on |
 | `HOST` | localhost only | Interface to bind; the Docker image uses `0.0.0.0` |
+| `DEMO_DATA` | off | `true` fills an empty bank with 10 demo accounts and two weeks of history at startup; on in the Docker image |
 
 Example: `ADMIN_PASSWORD=change-me java -cp bin WebApplication`
 
@@ -139,7 +140,7 @@ docker build -t banking-system .
 docker run -p 8080:8080 -e ADMIN_PASSWORD=change-me banking-system
 ```
 
-> On Render's free plan the file system is not persistent, so accounts are lost when the service restarts or redeploys.
+> On Render's free plan the file system is not persistent: accounts added on the live site are lost when the service restarts or redeploys, and the demo accounts are loaded again.
 
 ## Screenshots
 
