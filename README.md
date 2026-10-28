@@ -71,6 +71,20 @@ java -cp bin Application             # desktop app
 
 Don't run the desktop app and the website at the same time. Each keeps its own copy of the accounts in memory, and whichever saves last overwrites the other's changes.
 
+## Deploying the website
+
+The repo has a `Dockerfile` and a Render blueprint (`render.yaml`), so the website can run on any host that builds Docker images.
+
+**On [Render](https://render.com) (free):** sign in with GitHub, choose **New > Blueprint**, pick this repo, enter an `ADMIN_PASSWORD` when asked, and click **Apply**. The site goes live at `https://banking-system-xxxx.onrender.com`.
+
+| Environment variable | Default | Meaning |
+|---|---|---|
+| `PORT` | `8080` | port to listen on (set by the host) |
+| `HOST` | localhost only | `0.0.0.0` in the Docker image, so the site is reachable |
+| `ADMIN_USER` / `ADMIN_PASSWORD` | `admin` / `admin` | login; **set a real password on a public server** |
+
+On Render's free plan the disk is reset on every deploy or restart, so accounts made on the live site don't last. The free service also sleeps after 15 minutes without visitors, and the first visit afterwards takes about a minute to wake it.
+
 ## Screenshots
 
 ### Website

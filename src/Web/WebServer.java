@@ -38,9 +38,9 @@ import Exceptions.MaxWithdraw;
  */
 public class WebServer {
 
-	// same login as GUI.Login
-	private static final String USER = "admin";
-	private static final String PASSWORD = "admin";
+	// same login as GUI.Login, unless ADMIN_USER / ADMIN_PASSWORD are set (do set them on a public server)
+	private static final String USER = env("ADMIN_USER", "admin");
+	private static final String PASSWORD = env("ADMIN_PASSWORD", "admin");
 	private static final String COOKIE = "session";
 	private static final int MAX_BODY = 16 * 1024;
 
@@ -60,11 +60,22 @@ public class WebServer {
 	private final SecureRandom random = new SecureRandom();
 	private final HttpServer server;
 
-	/** Listens on localhost only; the website is not reachable from other computers. */
+	/**
+	 * Listens on localhost only, so the website is not reachable from other computers,
+	 * unless HOST is set (a cloud host sets HOST=0.0.0.0).
+	 */
 	public WebServer(int port) throws IOException {
-		server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
+		String host = System.getenv("HOST");
+		InetSocketAddress address = host == null ? new InetSocketAddress(InetAddress.getLoopbackAddress(), port) : new InetSocketAddress(host, port);
+		server = HttpServer.create(address, 0);
 		server.createContext("/api/", this::handleApi);
 		server.createContext("/", this::handleFile);
+	}
+
+	private static String env(String name, String fallback)
+	{
+		String value = System.getenv(name);
+		return value == null || value.isEmpty() ? fallback : value;
 	}
 
 	public void start()
@@ -158,7 +169,9 @@ public class WebServer {
 			token.append(String.format("%02x", b));
 		}
 		sessions.add(token.toString());
-		ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Strict");
+		// behind an HTTPS proxy, mark the cookie Secure so it is never sent over plain HTTP
+		String secure = "https".equals(ex.getRequestHeaders().getFirst("X-Forwarded-Proto")) ? "; Secure" : "";
+		ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Strict" + secure);
 		send(ex, 200, "{}");
 	}
 

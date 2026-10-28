@@ -9,12 +9,14 @@ import Web.WebServer;
 
 /**
  * Starts the website version of the Banking System and opens it in the browser.
- * Optional argument: port (default 8080).
+ * Optional argument: port (default: the PORT environment variable, else 8080).
  */
 public class WebApplication {
 	public static void main(String[] args) throws IOException
 	{
-		int port = args.length > 0 ? Integer.parseInt(args[0]) : 8080;
+		// a cloud host passes the port in PORT
+		String envPort = System.getenv("PORT");
+		int port = args.length > 0 ? Integer.parseInt(args[0]) : envPort != null ? Integer.parseInt(envPort) : 8080;
 		if (!Files.isDirectory(WebServer.ROOT))
 		{
 			System.err.println("Folder " + WebServer.ROOT + " not found. Run this from the project folder.");
