@@ -1,8 +1,12 @@
 package Bank;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 import Exceptions.AccNotFound;
 import Exceptions.InvalidAmount;
@@ -16,6 +20,8 @@ public class Bank implements Serializable {
 
 	private final LinkedHashMap<String, BankAccount> accounts = new LinkedHashMap<String, BankAccount>();
 	private int nextAccountNumber = FIRST_ACCOUNT_NUMBER;
+	// not final: a bank saved before history existed loads with null here, see readObject
+	private ArrayList<Transaction> transactions = new ArrayList<Transaction>();
 
 	/**
 	 * Opens an account of the given type. {@code extra} is the type-specific value:
@@ -43,6 +49,7 @@ public class Bank implements Serializable {
 		}
 		accounts.put(accNum, acc);
 		nextAccountNumber++;
+		record(Transaction.Kind.OPEN, acc, balance, null);
 		return acc;
 	}
 
@@ -84,12 +91,60 @@ public class Bank implements Serializable {
 
 	public void deposit(String accountNum, double amt) throws InvalidAmount, AccNotFound
 	{
-		getAccount(accountNum).deposit(amt);
+		BankAccount acc = getAccount(accountNum);
+		acc.deposit(amt);
+		record(Transaction.Kind.DEPOSIT, acc, amt, null);
 	}
 
 	public void withdraw(String accountNum, double amt) throws MaxBalance, AccNotFound, MaxWithdraw, InvalidAmount
 	{
-		getAccount(accountNum).withdraw(amt);
+		BankAccount acc = getAccount(accountNum);
+		acc.withdraw(amt);
+		record(Transaction.Kind.WITHDRAW, acc, amt, null);
+	}
+
+	/** Moves money between two accounts; the sender's minimum balance and withdraw limit apply. */
+	public void transfer(String fromNum, String toNum, double amt) throws MaxBalance, AccNotFound, MaxWithdraw, InvalidAmount
+	{
+		BankAccount from = getAccount(fromNum);
+		BankAccount to = getAccount(toNum);
+		if (from == to)
+		{
+			throw new IllegalArgumentException("Choose two different accounts");
+		}
+		from.withdraw(amt);
+		// cannot fail: withdraw has already checked the amount
+		to.deposit(amt);
+		record(Transaction.Kind.TRANSFER_OUT, from, amt, to.getAccNum());
+		record(Transaction.Kind.TRANSFER_IN, to, amt, from.getAccNum());
+	}
+
+	/** Removes the account; its remaining balance is paid out. Its number is never given out again. */
+	public BankAccount closeAccount(String accountNum) throws AccNotFound
+	{
+		BankAccount acc = getAccount(accountNum);
+		accounts.remove(acc.getAccNum());
+		record(Transaction.Kind.CLOSE, acc, acc.getBalance(), null);
+		return acc;
+	}
+
+	private void record(Transaction.Kind kind, BankAccount acc, double amt, String other)
+	{
+		transactions.add(new Transaction(transactions.size() + 1, kind, acc, amt, other));
+	}
+
+	/** Read-only view of every transaction, oldest first. */
+	public List<Transaction> getTransactions() {
+		return Collections.unmodifiableList(transactions);
+	}
+
+	private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException
+	{
+		in.defaultReadObject();
+		if (transactions == null)
+		{
+			transactions = new ArrayList<Transaction>();
+		}
 	}
 
 	/** Read-only view of all accounts in the order they were opened. */
