@@ -312,9 +312,15 @@ export function createLoginScene(canvas) {
 	const gold = new THREE.MeshStandardMaterial({ color: 0xf0c050, metalness: 1, roughness: 0.3, envMapIntensity: 0.45, emissive: 0x3a2400, emissiveIntensity: 0.6 });
 	const coinFace = new THREE.MeshStandardMaterial({ map: coinMap, metalness: 0.8, roughness: 0.35, envMapIntensity: 0.45, emissive: 0x3a2400, emissiveIntensity: 0.6 });
 	const coinGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.07, 48);
+	// the bottom cap's UVs are mirrored, so it gets a flipped copy of the face or the ₹ reads backwards
+	const backMap = coinMap.clone();
+	backMap.wrapS = THREE.RepeatWrapping;
+	backMap.repeat.x = -1;
+	const coinBack = coinFace.clone();
+	coinBack.map = backMap;
 	const coins = [];
 	for (let i = 0; i < 7; i++) {
-		const coin = new THREE.Mesh(coinGeo, [gold, coinFace, coinFace]);
+		const coin = new THREE.Mesh(coinGeo, [gold, coinFace, coinBack]);
 		coin.userData = {
 			radius: 2.3 + (i % 3) * 0.45,
 			speed: 0.22 + (i % 4) * 0.05,
