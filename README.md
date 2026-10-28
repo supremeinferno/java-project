@@ -6,12 +6,12 @@
 
 **A bank management web application with a dependency-free Java backend and a 3D interface built with three.js.**
 
-[![Live demo](https://img.shields.io/badge/demo-live-0f766e?style=for-the-badge)](https://java-project-3umo.onrender.com)
+[![Live demo](https://img.shields.io/badge/demo-live-0f766e?style=for-the-badge)](https://finvault-6ojq.onrender.com)
 [![Java](https://img.shields.io/badge/Java-8%2B-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org)
 [![three.js](https://img.shields.io/badge/three.js-r160-000000?style=for-the-badge&logo=threedotjs&logoColor=white)](https://threejs.org)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](Dockerfile)
 
-[Live demo](https://java-project-3umo.onrender.com) · [Project report](Bank.pdf) · [Report a bug](https://github.com/supremeinferno/java-project/issues)
+[Live demo](https://finvault-6ojq.onrender.com) · [Project report](Bank.pdf) · [Report a bug](https://github.com/supremeinferno/java-project/issues)
 
 <img src="screenshot/web-dashboard.png" alt="Dashboard" width="100%">
 
@@ -39,7 +39,7 @@ Banking System automates the everyday work of a bank branch. Staff sign in and c
 
 The backend uses only the Java standard library: the HTTP server built into the JDK and Java serialization for storage. The front end is plain HTML, CSS and JavaScript modules with no build step, so the project runs anywhere Java runs.
 
-> **Live demo:** https://java-project-3umo.onrender.com
+> **Live demo:** https://finvault-6ojq.onrender.com
 > Hosted on Render's free plan: the first request after a period of inactivity takes about a minute while the server wakes, and data is reset whenever the server restarts.
 
 ## Features
