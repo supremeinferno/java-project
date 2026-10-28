@@ -5,3 +5,9 @@ data.tmp
 
 # compiled classes: build with javac (see README)
 bin/
+
+# Neon: local credentials and project link (never commit)
+.env
+.env.*
+.neon
+node_modules/
