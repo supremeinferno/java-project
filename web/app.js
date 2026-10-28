@@ -29,6 +29,13 @@ const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => 
 const sum = list => list.reduce((s, v) => s + v, 0);
 const findAccount = accNum => state.accounts.find(a => a.accNum === String(accNum || "").trim());
 const typeOf = id => state.types.find(t => t.id === id);
+/** The type-specific details, formatted for people (the server's getDetails() prints raw doubles). */
+function detailsText(acc) {
+	const limit = acc.withdrawLimit === null ? "" : `Max ${money.format(acc.withdrawLimit)} per withdrawal`;
+	if (acc.type === "SAVINGS") return limit;
+	const extra = `${typeOf(acc.type) ? typeOf(acc.type).extraLabel : "Details"}: ${acc.extra}`;
+	return limit ? `${extra} · ${limit}` : extra;
+}
 const badge = acc => `<span class="badge type-${esc(acc.type)}">${esc(acc.typeLabel)}</span>`;
 
 const KIND_ICON = { OPEN: "open", DEPOSIT: "in", WITHDRAW: "out", TRANSFER_IN: "transfer", TRANSFER_OUT: "transfer", CLOSE: "close" };
@@ -274,7 +281,7 @@ function filteredAccounts() {
 	const { key, dir } = state.sort;
 	return state.accounts
 		.filter(a => state.typeFilter === "ALL" || a.type === state.typeFilter)
-		.filter(a => !query || [a.accNum, a.name, a.typeLabel, a.balance.toFixed(2), a.details].some(v => v.toLowerCase().includes(query)))
+		.filter(a => !query || [a.accNum, a.name, a.typeLabel, a.balance.toFixed(2), detailsText(a)].some(v => v.toLowerCase().includes(query)))
 		.sort((a, b) => (typeof a[key] === "number" ? a[key] - b[key] : a[key].localeCompare(b[key], undefined, { numeric: true })) * dir);
 }
 
@@ -296,7 +303,7 @@ function renderAccounts() {
 			<td class="strong">${esc(a.name)}</td>
 			<td>${badge(a)}</td>
 			<td class="num strong">${money.format(a.balance)}</td>
-			<td class="details">${esc(a.details)}</td>
+			<td class="details">${esc(detailsText(a))}</td>
 			<td class="actions">
 				<a class="btn btn-sm" href="#deposit/${esc(a.accNum)}">Deposit</a>
 				<a class="btn btn-sm" href="#withdraw/${esc(a.accNum)}">Withdraw</a>
@@ -339,7 +346,7 @@ $("#export-csv").addEventListener("click", () => {
 		return `"${(/^[=+\-@]/.test(s) ? "'" + s : s).replace(/"/g, '""')}"`;
 	};
 	const lines = [["Account No", "Name", "Type", "Balance", "Details"]]
-		.concat(filteredAccounts().map(a => [a.accNum, a.name, a.typeLabel, a.balance.toFixed(2), a.details]))
+		.concat(filteredAccounts().map(a => [a.accNum, a.name, a.typeLabel, a.balance.toFixed(2), detailsText(a)]))
 		.map(row => row.map(cell).join(","));
 	const link = document.createElement("a");
 	link.href = URL.createObjectURL(new Blob([lines.join("\r\n")], { type: "text/csv" }));
@@ -711,6 +718,8 @@ function isDark() {
 function updateThemeIcon() {
 	$("#theme-toggle use").setAttribute("href", isDark() ? "#i-sun" : "#i-moon");
 }
+
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", updateThemeIcon);
 
 $("#theme-toggle").addEventListener("click", () => {
 	const theme = isDark() ? "light" : "dark";
