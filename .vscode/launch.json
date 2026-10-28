@@ -1,0 +1,19 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "java",
+			"name": "Banking Website",
+			"request": "launch",
+			"mainClass": "WebApplication",
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "java",
+			"name": "Banking App (Swing)",
+			"request": "launch",
+			"mainClass": "Application",
+			"cwd": "${workspaceFolder}"
+		}
+	]
+}
