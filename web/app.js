@@ -166,6 +166,7 @@ async function showApp() {
 $("#login-form").addEventListener("submit", e => {
 	e.preventDefault();
 	const form = e.target;
+	showPassword(false);
 	submitting(form, async () => {
 		try {
 			await api("login", { username: form.username.value, password: form.password.value });
@@ -176,6 +177,22 @@ $("#login-form").addEventListener("submit", e => {
 		form.password.value = "";
 		await showApp();
 	});
+});
+
+/** Shows or hides the password; it is hidden again after every login attempt. */
+function showPassword(visible) {
+	const button = $("#toggle-password");
+	$("#login-form").password.type = visible ? "text" : "password";
+	button.setAttribute("aria-pressed", String(visible));
+	button.setAttribute("aria-label", visible ? "Hide password" : "Show password");
+	button.title = visible ? "Hide password" : "Show password";
+	$("use", button).setAttribute("href", visible ? "#i-eye-off" : "#i-eye");
+}
+
+$("#toggle-password").addEventListener("click", () => {
+	const field = $("#login-form").password;
+	showPassword(field.type === "password");
+	field.focus();
 });
 
 $("#logout").addEventListener("click", async () => {
