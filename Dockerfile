@@ -2,7 +2,7 @@
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /src
 COPY src ./src
-RUN javac --release 8 -nowarn -d bin $(find src -name '*.java') && cp -R src/img bin/
+RUN javac --release 8 -nowarn -d bin $(find src -name '*.java')
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app

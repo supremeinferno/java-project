@@ -7,13 +7,6 @@
 			"request": "launch",
 			"mainClass": "WebApplication",
 			"cwd": "${workspaceFolder}"
-		},
-		{
-			"type": "java",
-			"name": "Banking App (Swing)",
-			"request": "launch",
-			"mainClass": "Application",
-			"cwd": "${workspaceFolder}"
 		}
 	]
 }

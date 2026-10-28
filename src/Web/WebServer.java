@@ -38,7 +38,7 @@ import Exceptions.MaxWithdraw;
  */
 public class WebServer {
 
-	// same login as GUI.Login, unless ADMIN_USER / ADMIN_PASSWORD are set (do set them on a public server)
+	// admin / admin unless ADMIN_USER / ADMIN_PASSWORD are set (do set them on a public server)
 	private static final String USER = env("ADMIN_USER", "admin");
 	private static final String PASSWORD = env("ADMIN_PASSWORD", "admin");
 	private static final String COOKIE = "session";
@@ -194,7 +194,7 @@ public class WebServer {
 		return null;
 	}
 
-	/** Same behaviour as GUI.Ui.save: the change stays in memory even if writing the file fails. */
+	/** If writing the file fails, the change stays in memory and the user is told. */
 	private static void saveAndSend(HttpExchange ex, int status, String body) throws IOException
 	{
 		try
