@@ -8,3 +8,5 @@ services:
     envVars:
       - key: ADMIN_PASSWORD
         sync: false   # Render asks for it when you create the service
+      - key: DATABASE_URL
+        sync: false   # PostgreSQL connection string, e.g. from Neon; keeps data across restarts

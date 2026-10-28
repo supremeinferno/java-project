@@ -23,8 +23,18 @@ public class WebApplication {
 			System.err.println("Folder " + WebServer.ROOT + " not found. Run this from the project folder.");
 			System.exit(1);
 		}
-		FileIO.load();
-		if (FileIO.bank.size() == 0 && "true".equals(System.getenv("DEMO_DATA")))
+		System.out.println("Data: " + FileIO.storage());
+		try
+		{
+			FileIO.load();
+		}
+		catch (IllegalStateException e)
+		{
+			// refuse to start rather than run with an empty bank that would overwrite the saved one
+			System.err.println(e.getMessage());
+			System.exit(1);
+		}
+		if (FileIO.bank.size() == 0 && FileIO.bank.getTransactions().isEmpty() && "true".equals(System.getenv("DEMO_DATA")))
 		{
 			// a fresh public deployment starts with demo accounts instead of an empty bank
 			FileIO.bank = DemoData.create();

@@ -11,12 +11,24 @@ import Bank.Bank;
 public class FileIO {
 
 	private static final File FILE = new File("data");
+	private static final Database DATABASE = Database.fromEnv();
 
 	public static Bank bank = new Bank();
+
+	/** Where the bank is kept, for the startup log. */
+	public static String storage()
+	{
+		return DATABASE != null ? "PostgreSQL (" + DATABASE.describe() + ")" : "file " + FILE.getAbsolutePath();
+	}
 
 	/** Loads the bank from disk; an unreadable file is kept as data.old and a new bank is started. */
 	public static void load()
 	{
+		if (DATABASE != null)
+		{
+			bank = DATABASE.load();
+			return;
+		}
 		if (!FILE.exists())
 		{
 			bank = new Bank();
@@ -43,6 +55,11 @@ public class FileIO {
 	/** Writes the bank to a temp file first so a failed save never destroys the old data. */
 	public static void save() throws IOException
 	{
+		if (DATABASE != null)
+		{
+			DATABASE.save(bank);
+			return;
+		}
 		File tmp = new File("data.tmp");
 		try (ObjectOutputStream out = new ObjectOutputStream(Files.newOutputStream(tmp.toPath())))
 		{

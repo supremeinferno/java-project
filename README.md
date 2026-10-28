@@ -82,7 +82,7 @@ Withdrawals and transfers can never take an account below its minimum balance.
 | Layer | Technology |
 |---|---|
 | Backend | Java 8+, `com.sun.net.httpserver` (built into the JDK) |
-| Storage | Java serialization to a local `data` file, written atomically |
+| Storage | PostgreSQL (via JDBC) when `DATABASE_URL` is set, otherwise a local `data` file; both written atomically |
 | Front end | HTML, CSS, JavaScript (ES modules), no build step |
 | 3D graphics | [three.js](https://threejs.org) r160, bundled in `web/vendor` |
 | Hosting | Docker, [Render](https://render.com) |
@@ -118,6 +118,7 @@ All settings are environment variables:
 | `ADMIN_PASSWORD` | `admin` | Login password. **Always set this on a public server.** |
 | `PORT` | `8080` | Port to listen on |
 | `HOST` | localhost only | Interface to bind; the Docker image uses `0.0.0.0` |
+| `DATABASE_URL` | not set | PostgreSQL connection string (`postgresql://user:password@host/db?sslmode=require`). When set, data is stored in the database instead of the `data` file, so it survives restarts |
 | `DEMO_DATA` | off | `true` fills an empty bank with 10 demo accounts and two weeks of history at startup; on in the Docker image |
 
 Example: `ADMIN_PASSWORD=change-me java -cp bin WebApplication`
@@ -140,7 +141,14 @@ docker build -t banking-system .
 docker run -p 8080:8080 -e ADMIN_PASSWORD=change-me banking-system
 ```
 
-> On Render's free plan the file system is not persistent: accounts added on the live site are lost when the service restarts or redeploys, and the demo accounts are loaded again.
+### Keeping data across restarts
+
+Render's free plan wipes the file system on every restart, so set `DATABASE_URL` to a PostgreSQL database. [Neon](https://neon.tech) has a free plan that doesn't expire:
+
+1. Create a project at [neon.tech](https://neon.tech) and copy the connection string from **Connect**.
+2. In Render, open the service's **Environment** tab, add `DATABASE_URL` with that string, and save.
+
+On startup the log shows `Data: PostgreSQL (...)`. The table `bank_state` is created automatically. If the database can't be reached, the server refuses to start instead of starting with an empty bank. Without `DATABASE_URL`, the live site goes back to the demo accounts after every restart.
 
 ## Screenshots
 
@@ -167,7 +175,7 @@ Browser ──HTTP/JSON──▶ WebServer ──▶ Bank (domain model) ──�
 |---|---|
 | `src/Bank` | Domain model. `Bank` holds the accounts in a map and records every change as a `Transaction`. `BankAccount` is the abstract base of `SavingsAccount`, `CurrentAccount` and `StudentAccount`. `AccountType` holds each type's rules, so a new type needs only an enum entry and a subclass. |
 | `src/Exceptions` | Checked exceptions: `AccNotFound`, `InvalidAmount`, `MaxBalance` (below minimum balance), `MaxWithdraw` (over the limit). |
-| `src/Data` | `FileIO` loads and saves the bank, writing to a temporary file first so a failed save never corrupts existing data. |
+| `src/Data` | `FileIO` loads and saves the bank: to PostgreSQL through `Database` when `DATABASE_URL` is set, otherwise to the `data` file (written to a temporary file first, so a failed save never corrupts existing data). |
 | `src/Web` | `WebServer` serves the front end and the JSON API and checks the session on every request. `WebApplication` is the entry point. |
 | `web` | Front end: `app.js` (pages and routing), `chart.js` (money in & out chart), `scene3d.js` (three.js scenes). |
 
@@ -208,7 +216,8 @@ Parameters are sent as `application/x-www-form-urlencoded`. Every endpoint excep
 
 ## Roadmap
 
-- [ ] Persistent database (PostgreSQL or MySQL) so data survives restarts
+- [x] PostgreSQL storage so data survives restarts
+- [ ] Store accounts and transactions as separate tables for reporting
 - [ ] Multiple staff accounts with roles and hashed passwords
 - [ ] Monthly interest for Savings and Student accounts
 - [ ] Printable statements and transaction receipts
