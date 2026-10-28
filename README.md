@@ -1,158 +1,233 @@
+<div align="center">
+
+<img src="web/favicon.svg" alt="Banking System logo" width="72">
+
 # Banking System
 
-A bank management website with a Java backend. Bank staff can open Savings, Current and Student accounts, deposit, withdraw, transfer between accounts, close accounts and see the full history of every transaction. The backend is a small Java web server with no extra libraries, and the front end has a 3D login card and dashboard built with three.js.
+**A bank management web application with a dependency-free Java backend and a 3D interface built with three.js.**
 
-**Live website:** https://java-project-3umo.onrender.com (free hosting: the first visit after a quiet spell takes about a minute to wake the server, and accounts are reset when it restarts)
+[![Live demo](https://img.shields.io/badge/demo-live-0f766e?style=for-the-badge)](https://java-project-3umo.onrender.com)
+[![Java](https://img.shields.io/badge/Java-8%2B-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org)
+[![three.js](https://img.shields.io/badge/three.js-r160-000000?style=for-the-badge&logo=threedotjs&logoColor=white)](https://threejs.org)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](Dockerfile)
 
-![Dashboard](screenshot/web-dashboard.png)
+[Live demo](https://java-project-3umo.onrender.com) · [Project report](Bank.pdf) · [Report a bug](https://github.com/supremeinferno/java-project/issues)
+
+<img src="screenshot/web-dashboard.png" alt="Dashboard" width="100%">
+
+</div>
+
+## Table of contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [Configuration](#configuration)
+- [Deployment](#deployment)
+- [Screenshots](#screenshots)
+- [Architecture](#architecture)
+- [API reference](#api-reference)
+- [Project structure](#project-structure)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+Banking System automates the everyday work of a bank branch. Staff sign in and can open accounts, move money and review every transaction. All rules (minimum balances, withdrawal limits, valid amounts) are enforced on the server, and every change is saved immediately.
+
+The backend uses only the Java standard library: the HTTP server built into the JDK and Java serialization for storage. The front end is plain HTML, CSS and JavaScript modules with no build step, so the project runs anywhere Java runs.
+
+> **Live demo:** https://java-project-3umo.onrender.com
+> Hosted on Render's free plan: the first request after a period of inactivity takes about a minute while the server wakes, and data is reset whenever the server restarts.
 
 ## Features
 
-- **Login** with an animated 3D bank card: it flies in, floats, flips to show its back, and can be dragged to spin or clicked to flip.
-- **Dashboard**: total holdings, a 3D view with one tower per account (drag to turn, click to open), money in & out for the last 14 days, holdings by type and recent activity.
-- **Accounts**: search, sort, filter by type and export to CSV.
-- **Account page**: the account's card, balance, rules, a 5% interest projection for Savings and Student accounts, and its full history.
-- **Open account** for all three types; the form asks for the right details for each type.
-- **Deposit / Withdraw**: shows whose account it is, and how much can be taken out, while you type the number.
-- **Transfer** between any two accounts; the sender's minimum balance and withdraw limit apply.
-- **Close account**: pays out the remaining balance; the account number is never reused.
-- **Activity**: every transaction in the bank, filterable by kind.
-- Quick account search in the top bar (press `/`), light and dark theme, and a layout that works on phones.
+**Accounts**
+- Open Savings, Current and Student accounts; the form adapts to the details each type needs
+- Account page with a card, balance, rules, a 5% interest projection and full history
+- Search, sort and filter by type; export the list to CSV
+- Close an account with confirmation; the remaining balance is paid out and the number is never reused
 
-Data is saved to the `data` file after every change.
+**Transactions**
+- Deposit, withdraw and transfer between accounts
+- Live preview of the account holder and the available balance while typing an account number
+- Complete activity log for the whole bank, filterable by kind
+
+**Dashboard**
+- Total holdings, account count, average balance and today's activity
+- Money in & out chart for the last 14 days and holdings by account type
+- Interactive 3D view: one tower per account, sized by balance; drag to rotate, click to open
+
+**Experience**
+- Animated 3D login card that flies in, flips and can be spun with the mouse
+- Show / hide password on the login form
+- Quick account search from anywhere (press `/`)
+- Light and dark themes and a responsive layout for phones
+- Works without WebGL, just without the 3D parts
 
 ### Account rules
 
-| Account type | Minimum balance | Asked when opening | Max per withdrawal |
+| Type | Minimum balance | Required when opening | Maximum per withdrawal |
 |---|---|---|---|
-| Savings | ₹2,000 | Maximum withdraw limit | the limit given when opening |
-| Current | ₹5,000 | Trade licence number | no limit |
+| Savings | ₹2,000 | Maximum withdraw limit | Set when opening |
+| Current | ₹5,000 | Trade licence number | No limit |
 | Student | ₹100 | Institution name | ₹20,000 |
 
-A withdrawal or transfer can never take an account below its minimum balance.
+Withdrawals and transfers can never take an account below its minimum balance.
 
-## Running it on your computer
+## Tech stack
 
-You need **Java 8 or newer** (`java -version`). Nothing else: the web server is built into the JDK and three.js is bundled in `web/vendor`.
+| Layer | Technology |
+|---|---|
+| Backend | Java 8+, `com.sun.net.httpserver` (built into the JDK) |
+| Storage | Java serialization to a local `data` file, written atomically |
+| Front end | HTML, CSS, JavaScript (ES modules), no build step |
+| 3D graphics | [three.js](https://threejs.org) r160, bundled in `web/vendor` |
+| Hosting | Docker, [Render](https://render.com) |
+
+## Getting started
+
+### Prerequisites
+
+- Java Development Kit 8 or newer (`java -version`)
+
+### Run locally
 
 ```bash
 git clone https://github.com/supremeinferno/java-project.git
 cd java-project
+javac -d bin $(find src -name '*.java')
+java -cp bin WebApplication
 ```
 
-**In VS Code (easiest):** open the folder with the *Extension Pack for Java*, pick **Banking Website** in the Run and Debug panel, and the browser opens by itself at http://localhost:8080.
+The browser opens at http://localhost:8080. Sign in with `admin` / `admin` (see [Configuration](#configuration) to change it). Pass a port number to use another port: `java -cp bin WebApplication 9000`.
 
-**From a terminal**, in the project folder (so the `data` file and the `web` folder are found):
+**VS Code:** open the folder with the *Extension Pack for Java* and run **Banking Website** from the Run and Debug panel.
+
+> Always open the site through the Java server. Opening `web/index.html` directly or through a static server such as Live Server doesn't work, because the pages need the server's API.
+
+## Configuration
+
+All settings are environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `ADMIN_USER` | `admin` | Login username |
+| `ADMIN_PASSWORD` | `admin` | Login password. **Always set this on a public server.** |
+| `PORT` | `8080` | Port to listen on |
+| `HOST` | localhost only | Interface to bind; the Docker image uses `0.0.0.0` |
+
+Example: `ADMIN_PASSWORD=change-me java -cp bin WebApplication`
+
+## Deployment
+
+The repository includes a multi-stage `Dockerfile` and a Render blueprint (`render.yaml`).
+
+**Render**
+1. Sign in to [Render](https://render.com) with GitHub.
+2. Choose **New → Blueprint** and select this repository.
+3. Enter an `ADMIN_PASSWORD` when prompted and click **Apply**.
+
+Every push to `main` redeploys automatically. To change the password later, edit `ADMIN_PASSWORD` in the service's **Environment** tab.
+
+**Any Docker host**
 
 ```bash
-javac -d bin $(find src -name '*.java')
-java -cp bin WebApplication          # http://localhost:8080
-java -cp bin WebApplication 9000     # on another port
+docker build -t banking-system .
+docker run -p 8080:8080 -e ADMIN_PASSWORD=change-me banking-system
 ```
 
-Log in with `admin` / `admin`, or the password set in `ADMIN_PASSWORD` (see below). `bin` is build output and is not kept in git.
-
-> **Note:** always open the site through the Java server (http://localhost:8080). Opening `web/index.html` directly, or with VS Code's Live Server, shows an error page, because neither of them has the `/api` the site talks to.
-
-## Deploying
-
-The repo has a `Dockerfile` and a Render blueprint (`render.yaml`), so the website can run on any host that builds Docker images.
-
-**On [Render](https://render.com) (free):** sign in with GitHub, choose **New > Blueprint**, pick this repo, enter an `ADMIN_PASSWORD` when asked, and click **Apply**. To change the password later, open the service's **Environment** tab, edit `ADMIN_PASSWORD` and save.
-
-| Environment variable | Default | Meaning |
-|---|---|---|
-| `PORT` | `8080` | port to listen on (set by the host) |
-| `HOST` | localhost only | `0.0.0.0` in the Docker image, so the site is reachable |
-| `ADMIN_USER` / `ADMIN_PASSWORD` | `admin` / `admin` | login; **set a real password on a public server** |
-
-On Render's free plan the disk is reset on every deploy or restart, so accounts made on the live site don't last. The free service also sleeps after 15 minutes without visitors.
+> On Render's free plan the file system is not persistent, so accounts are lost when the service restarts or redeploys.
 
 ## Screenshots
 
-| Login (animated 3D card) | Dashboard, dark theme |
+| Login | Dashboard (dark theme) |
 |---|---|
 | ![Login](screenshot/web-login.png) | ![Dashboard, dark theme](screenshot/web-dashboard-dark.png) |
-| **Accounts** | **Account page** |
-| ![Accounts](screenshot/web-accounts.png) | ![Account page](screenshot/web-account.png) |
+| **Accounts** | **Account details** |
+| ![Accounts](screenshot/web-accounts.png) | ![Account details](screenshot/web-account.png) |
 | **Transfer** | **Activity** |
 | ![Transfer](screenshot/web-transfer.png) | ![Activity](screenshot/web-activity.png) |
-| **Open an account** | **On a phone** |
-| ![Open an account](screenshot/web-open.png) | <img src="screenshot/web-mobile-dashboard.png" alt="Phone dashboard" width="48%"> <img src="screenshot/web-mobile-account.png" alt="Phone account page" width="48%"> |
+| **Open an account** | **Mobile** |
+| ![Open an account](screenshot/web-open.png) | <img src="screenshot/web-mobile-dashboard.png" alt="Mobile dashboard" width="48%"> <img src="screenshot/web-mobile-account.png" alt="Mobile account page" width="48%"> |
 
-The screenshots use demo accounts.
+<sub>Screenshots show demo data.</sub>
 
-## How it works
+## Architecture
 
 ```
- Browser ──HTTP──▶ WebServer (src/Web) ──▶ Bank, BankAccount, Transaction (src/Bank) ──▶ FileIO (src/Data) ──▶ data file
-   (web/)            JSON API                 banking rules                                  Java serialization
+Browser ──HTTP/JSON──▶ WebServer ──▶ Bank (domain model) ──▶ FileIO ──▶ data file
+ web/                  src/Web        src/Bank                src/Data
 ```
 
-- **`src/Bank`** is the domain model. `Bank` keeps the accounts in a map, so there is no limit on how many there are, and records every change as a `Transaction`. `BankAccount` is the abstract base of `SavingsAccount`, `CurrentAccount` and `StudentAccount` (a kind of savings account). `AccountType` holds each type's label, minimum balance and extra field, so a new account type only needs an `AccountType` entry and a `BankAccount` subclass.
-- **`src/Exceptions`** holds the checked exceptions the model throws: `AccNotFound`, `InvalidAmount`, `MaxBalance` (would go below the minimum balance) and `MaxWithdraw` (over the withdraw limit).
-- **`src/Data/FileIO`** loads and saves the bank with Java serialization. It writes to a temporary file first, so a failed save never destroys the old data.
-- **`src/Web/WebServer`** uses the JDK's built-in `com.sun.net.httpserver`. It serves the `web` folder and a small JSON API, and uses a session cookie after login. `WebApplication` starts it and, on your own computer, opens the browser.
-- **`web`** is the front end, in plain HTML, CSS and JavaScript modules with no build step: `app.js` for the pages, `chart.js` for the money in & out chart and `scene3d.js` for the three.js scenes. On a computer without WebGL, the site still works, just without the 3D parts.
+| Package | Responsibility |
+|---|---|
+| `src/Bank` | Domain model. `Bank` holds the accounts in a map and records every change as a `Transaction`. `BankAccount` is the abstract base of `SavingsAccount`, `CurrentAccount` and `StudentAccount`. `AccountType` holds each type's rules, so a new type needs only an enum entry and a subclass. |
+| `src/Exceptions` | Checked exceptions: `AccNotFound`, `InvalidAmount`, `MaxBalance` (below minimum balance), `MaxWithdraw` (over the limit). |
+| `src/Data` | `FileIO` loads and saves the bank, writing to a temporary file first so a failed save never corrupts existing data. |
+| `src/Web` | `WebServer` serves the front end and the JSON API and checks the session on every request. `WebApplication` is the entry point. |
+| `web` | Front end: `app.js` (pages and routing), `chart.js` (money in & out chart), `scene3d.js` (three.js scenes). |
 
-### API
+**Security:** sessions use random 192-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, marked `Secure` behind HTTPS. Static file paths are normalized and confined to the `web` folder, request bodies are size-limited, and all user content is escaped before it's rendered.
 
-| Method | Path | Form fields | Does |
+## API reference
+
+| Method | Endpoint | Parameters | Description |
 |---|---|---|---|
-| `POST` | `/api/login` | `username`, `password` | logs in and sets the session cookie |
-| `POST` | `/api/logout` | | logs out |
-| `GET` | `/api/types` | | account types and their rules |
-| `GET` | `/api/bank` | | all accounts and all transactions |
-| `POST` | `/api/accounts` | `type`, `name`, `balance`, `extra` | opens an account |
-| `POST` | `/api/deposit` | `account`, `amount` | deposits |
-| `POST` | `/api/withdraw` | `account`, `amount` | withdraws |
-| `POST` | `/api/transfer` | `from`, `to`, `amount` | transfers |
-| `POST` | `/api/close` | `account` | closes an account and pays out its balance |
+| `POST` | `/api/login` | `username`, `password` | Sign in and receive a session cookie |
+| `POST` | `/api/logout` | | Sign out |
+| `GET` | `/api/types` | | Account types and their rules |
+| `GET` | `/api/bank` | | All accounts and transactions |
+| `POST` | `/api/accounts` | `type`, `name`, `balance`, `extra` | Open an account |
+| `POST` | `/api/deposit` | `account`, `amount` | Deposit |
+| `POST` | `/api/withdraw` | `account`, `amount` | Withdraw |
+| `POST` | `/api/transfer` | `from`, `to`, `amount` | Transfer between accounts |
+| `POST` | `/api/close` | `account` | Close an account |
 
-Everything except login and types needs the session cookie. Errors come back as `{"error": "..."}` with status 400, 401 or 404.
+Parameters are sent as `application/x-www-form-urlencoded`. Every endpoint except `login` and `types` needs a session. Errors return `{"error": "message"}` with status `400`, `401` or `404`.
 
 ## Project structure
 
 ```
-├── src
-│   ├── WebApplication.java    entry point
-│   ├── Bank/                  domain model
-│   ├── Data/                  saving and loading
-│   ├── Exceptions/
-│   └── Web/                   web server and API
-├── web/                       the website (HTML, CSS, JS, bundled three.js)
-├── screenshot/
-├── Bank.pdf                   project report
-├── Dockerfile, render.yaml    deployment
-└── .vscode/launch.json        run configuration
+.
+├── src/
+│   ├── WebApplication.java   entry point
+│   ├── Bank/                 domain model
+│   ├── Data/                 persistence
+│   ├── Exceptions/           checked exceptions
+│   └── Web/                  HTTP server and API
+├── web/                      front end and bundled three.js
+├── screenshot/               README images
+├── Bank.pdf                  project report
+├── Dockerfile                container build
+└── render.yaml               Render blueprint
 ```
 
-## Project report
+## Roadmap
 
-[Bank.pdf](Bank.pdf) is the project report: introduction, proposed system, feasibility analysis, design, modules and screenshots.
+- [ ] Persistent database (PostgreSQL or MySQL) so data survives restarts
+- [ ] Multiple staff accounts with roles and hashed passwords
+- [ ] Monthly interest for Savings and Student accounts
+- [ ] Printable statements and transaction receipts
+- [ ] Custom domain for the live site
 
-## Technologies
+## Contributing
 
-- Java 8+, with `com.sun.net.httpserver` for the web server
-- HTML, CSS and JavaScript (ES modules)
-- [three.js](https://threejs.org) r160 for the 3D scenes (MIT licence, bundled in `web/vendor/three`)
-- Docker and Render for hosting
-
-## Contribution
-
-Contributions are welcome! If you'd like to contribute to the project, please follow these steps:
+Contributions are welcome.
 
 1. Fork the repository
-2. Create a new branch (`git checkout -b feature/new-feature`)
-3. Commit your changes (`git commit -m 'Add new feature'`)
-4. Push to the branch (`git push origin feature/new-feature`)
-5. Create a pull request
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m "Add my feature"`
+4. Push the branch: `git push origin feature/my-feature`
+5. Open a pull request
 
 ## License
 
-This project is for educational purposes.
+This project is for educational purposes. three.js is distributed under the [MIT License](web/vendor/three/LICENSE).
 
 ## Acknowledgments
 
-- Java for the language and its built-in HTTP server.
-- [three.js](https://threejs.org) for the 3D graphics.
+- [three.js](https://threejs.org) for 3D rendering
+- [Shields.io](https://shields.io) for the badges
