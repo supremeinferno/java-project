@@ -2,3 +2,6 @@
 data
 data.old
 data.tmp
+
+# compiled classes: build with javac (see README)
+bin/
