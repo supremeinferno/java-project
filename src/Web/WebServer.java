@@ -12,10 +12,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
+import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -23,11 +25,18 @@ import com.sun.net.httpserver.HttpServer;
 import Bank.AccountType;
 import Bank.BankAccount;
 import Bank.CurrentAccount;
+import Bank.FeeCharging;
+import Bank.InterestBearing;
+import Bank.MonthEndResult;
+import Bank.Permission;
+import Bank.Role;
 import Bank.SavingsAccount;
 import Bank.StudentAccount;
 import Bank.Transaction;
+import Bank.User;
 import Data.FileIO;
 import Exceptions.AccNotFound;
+import Exceptions.AccessDenied;
 import Exceptions.InvalidAmount;
 import Exceptions.MaxBalance;
 import Exceptions.MaxWithdraw;
@@ -38,9 +47,6 @@ import Exceptions.MaxWithdraw;
  */
 public class WebServer {
 
-	// admin / admin unless ADMIN_USER / ADMIN_PASSWORD are set (do set them on a public server)
-	private static final String USER = env("ADMIN_USER", "admin");
-	private static final String PASSWORD = env("ADMIN_PASSWORD", "admin");
 	private static final String COOKIE = "session";
 	private static final int MAX_BODY = 16 * 1024;
 
@@ -56,7 +62,8 @@ public class WebServer {
 		CONTENT_TYPES.put("ico", "image/x-icon");
 	}
 
-	private final Set<String> sessions = new HashSet<String>();
+	// session token -> the logged-in user
+	private final Map<String, User> sessions = new HashMap<String, User>();
 	private final SecureRandom random = new SecureRandom();
 	private final HttpServer server;
 
@@ -70,12 +77,6 @@ public class WebServer {
 		server = HttpServer.create(address, 0);
 		server.createContext("/api/", this::handleApi);
 		server.createContext("/", this::handleFile);
-	}
-
-	private static String env(String name, String fallback)
-	{
-		String value = System.getenv(name);
-		return value == null || value.isEmpty() ? fallback : value;
 	}
 
 	public void start()
@@ -105,6 +106,8 @@ public class WebServer {
 				send(ex, 401, error("Please log in"));
 				return;
 			}
+			User user = sessions.get(session);
+			// every route below checks the user's role first, and for a customer that the account is theirs
 			switch (route)
 			{
 			case "POST /api/logout":
@@ -113,27 +116,87 @@ public class WebServer {
 				send(ex, 200, "{}");
 				break;
 			case "GET /api/bank":
-				send(ex, 200, "{\"accounts\":" + accountsJson() + ",\"transactions\":" + transactionsJson() + "}");
+				YearMonth last = FileIO.bank.getLastMonthEnd();
+				send(ex, 200, "{\"user\":" + json(user) + ",\"accounts\":" + accountsJson(user)
+						+ ",\"transactions\":" + transactionsJson(user)
+						+ ",\"lastMonthEnd\":" + (last == null ? "null" : quote(last.toString())) + "}");
+				break;
+			case "POST /api/month-end":
+				user.require(Permission.RUN_MONTH_END);
+				MonthEndResult result = FileIO.bank.runMonthEnd();
+				saveAndSend(ex, 200, "{\"month\":" + quote(result.getMonth().toString())
+						+ ",\"interestCount\":" + result.getInterestCount()
+						+ ",\"interestTotal\":" + result.getInterestTotal()
+						+ ",\"feeCount\":" + result.getFeeCount()
+						+ ",\"feeTotal\":" + result.getFeeTotal() + "}");
+				break;
+			case "POST /api/password":
+				if (!user.checkPassword(value(form, "current")))
+				{
+					throw new IllegalArgumentException("The current password is wrong");
+				}
+				user.setPassword(form.get("password"));
+				saveAndSend(ex, 200, "{}");
 				break;
 			case "POST /api/accounts":
+				user.require(Permission.OPEN_ACCOUNT);
+				// checked before opening, so a wrong name doesn't leave a new account behind
+				User owner = customerOf(value(form, "owner"));
 				BankAccount acc = FileIO.bank.openAccount(parseType(form.get("type")), form.get("name"),
 						parseNumber(form.get("balance"), "Balance"), value(form, "extra"));
+				if (owner != null)
+				{
+					FileIO.bank.linkAccount(owner.getUsername(), acc.getAccNum());
+				}
 				saveAndSend(ex, 201, "{\"account\":" + json(acc) + "}");
 				break;
 			case "POST /api/deposit":
+				user.require(Permission.DEPOSIT);
+				user.requireAccess(form.get("account"));
 				FileIO.bank.deposit(form.get("account"), parseNumber(form.get("amount"), "Amount"));
 				saveAndSend(ex, 200, "{\"account\":" + json(FileIO.bank.findAccount(form.get("account"))) + "}");
 				break;
 			case "POST /api/withdraw":
+				user.require(Permission.WITHDRAW);
+				user.requireAccess(form.get("account"));
 				FileIO.bank.withdraw(form.get("account"), parseNumber(form.get("amount"), "Amount"));
 				saveAndSend(ex, 200, "{\"account\":" + json(FileIO.bank.findAccount(form.get("account"))) + "}");
 				break;
 			case "POST /api/transfer":
+				user.require(Permission.TRANSFER);
+				// a customer may send to any account, but only from their own
+				user.requireAccess(form.get("from"));
 				FileIO.bank.transfer(form.get("from"), form.get("to"), parseNumber(form.get("amount"), "Amount"));
 				saveAndSend(ex, 200, "{\"account\":" + json(FileIO.bank.findAccount(form.get("from"))) + "}");
 				break;
 			case "POST /api/close":
+				user.require(Permission.CLOSE_ACCOUNT);
 				saveAndSend(ex, 200, "{\"account\":" + json(FileIO.bank.closeAccount(form.get("account"))) + "}");
+				break;
+			case "GET /api/users":
+				user.require(Permission.MANAGE_USERS);
+				send(ex, 200, "{\"users\":" + usersJson() + ",\"roles\":" + rolesJson() + "}");
+				break;
+			case "POST /api/users":
+				user.require(Permission.MANAGE_USERS);
+				User created = FileIO.bank.addUser(form.get("username"), form.get("password"),
+						parseRole(form.get("role")), parseList(form.get("accounts")));
+				saveAndSend(ex, 201, "{\"user\":" + json(created) + "}");
+				break;
+			case "POST /api/users/accounts":
+				user.require(Permission.MANAGE_USERS);
+				FileIO.bank.setUserAccounts(value(form, "username"), parseList(form.get("accounts")));
+				saveAndSend(ex, 200, "{\"user\":" + json(FileIO.bank.findUser(form.get("username"))) + "}");
+				break;
+			case "POST /api/users/delete":
+				user.require(Permission.MANAGE_USERS);
+				if (user == FileIO.bank.findUser(form.get("username")))
+				{
+					throw new IllegalArgumentException("You can't delete your own login");
+				}
+				User removed = FileIO.bank.removeUser(value(form, "username"));
+				sessions.values().removeIf(u -> u == removed);
+				saveAndSend(ex, 200, "{}");
 				break;
 			default:
 				send(ex, 404, error("Not found"));
@@ -142,6 +205,10 @@ public class WebServer {
 		catch (AccNotFound e)
 		{
 			send(ex, 404, error(e.getMessage()));
+		}
+		catch (AccessDenied e)
+		{
+			send(ex, 403, error(e.getMessage()));
 		}
 		catch (InvalidAmount | MaxBalance | MaxWithdraw | IllegalArgumentException e)
 		{
@@ -156,7 +223,8 @@ public class WebServer {
 
 	private void login(HttpExchange ex, Map<String, String> form) throws IOException
 	{
-		if (!USER.equals(value(form, "username").trim()) || !PASSWORD.equals(value(form, "password")))
+		User user = FileIO.bank.findUser(value(form, "username"));
+		if (user == null || !user.checkPassword(value(form, "password")))
 		{
 			send(ex, 401, error("Login Failed"));
 			return;
@@ -168,11 +236,11 @@ public class WebServer {
 		{
 			token.append(String.format("%02x", b));
 		}
-		sessions.add(token.toString());
+		sessions.put(token.toString(), user);
 		// behind an HTTPS proxy, mark the cookie Secure so it is never sent over plain HTTP
 		String secure = "https".equals(ex.getRequestHeaders().getFirst("X-Forwarded-Proto")) ? "; Secure" : "";
 		ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Strict" + secure);
-		send(ex, 200, "{}");
+		send(ex, 200, "{\"user\":" + json(user) + "}");
 	}
 
 	/** Returns the session token of a logged-in user, or null. */
@@ -186,7 +254,7 @@ public class WebServer {
 		for (String part : header.split(";"))
 		{
 			String[] pair = part.trim().split("=", 2);
-			if (pair.length == 2 && pair[0].equals(COOKIE) && sessions.contains(pair[1]))
+			if (pair.length == 2 && pair[0].equals(COOKIE) && sessions.containsKey(pair[1]))
 			{
 				return pair[1];
 			}
@@ -306,6 +374,47 @@ public class WebServer {
 		throw new IllegalArgumentException("Choose an account type");
 	}
 
+	private static Role parseRole(String name)
+	{
+		for (Role role : Role.values())
+		{
+			if (role.name().equals(name))
+			{
+				return role;
+			}
+		}
+		throw new IllegalArgumentException("Choose a role");
+	}
+
+	/** Splits "10001, 10002" (commas or spaces) into account numbers. */
+	private static List<String> parseList(String text)
+	{
+		List<String> list = new ArrayList<String>();
+		for (String part : (text == null ? "" : text).split("[,\\s]+"))
+		{
+			if (!part.isEmpty())
+			{
+				list.add(part);
+			}
+		}
+		return list;
+	}
+
+	/** The customer login named in the open-account form, or null if the field was left empty. */
+	private static User customerOf(String username)
+	{
+		if (username.trim().isEmpty())
+		{
+			return null;
+		}
+		User owner = FileIO.bank.findUser(username);
+		if (owner == null || owner.getRole() != Role.CUSTOMER)
+		{
+			throw new IllegalArgumentException("There is no customer login " + username.trim());
+		}
+		return owner;
+	}
+
 	// ---- JSON output
 
 	private static String typesJson()
@@ -326,16 +435,85 @@ public class WebServer {
 		return sb.append("]}").toString();
 	}
 
-	private static String accountsJson()
+	/** The accounts this user may see: all of them for staff, their own for a customer. */
+	private static String accountsJson(User user)
 	{
 		StringBuilder sb = new StringBuilder("[");
 		for (BankAccount acc : FileIO.bank.getAccounts())
 		{
+			if (!user.canAccess(acc.getAccNum()))
+			{
+				continue;
+			}
 			if (sb.length() > 1)
 			{
 				sb.append(',');
 			}
 			sb.append(json(acc));
+		}
+		return sb.append(']').toString();
+	}
+
+	private static String json(User user)
+	{
+		return "{\"username\":" + quote(user.getUsername())
+				+ ",\"role\":" + quote(user.getRole().name())
+				+ ",\"roleLabel\":" + quote(user.getRole().getLabel())
+				+ ",\"permissions\":" + namesJson(user.getRole().getPermissions())
+				+ ",\"accounts\":" + stringsJson(user.getAccounts()) + "}";
+	}
+
+	private static String usersJson()
+	{
+		StringBuilder sb = new StringBuilder("[");
+		for (User user : FileIO.bank.getUsers())
+		{
+			if (sb.length() > 1)
+			{
+				sb.append(',');
+			}
+			sb.append(json(user));
+		}
+		return sb.append(']').toString();
+	}
+
+	private static String rolesJson()
+	{
+		StringBuilder sb = new StringBuilder("[");
+		for (Role role : Role.values())
+		{
+			if (role.ordinal() > 0)
+			{
+				sb.append(',');
+			}
+			sb.append("{\"id\":").append(quote(role.name()))
+				.append(",\"label\":").append(quote(role.getLabel()))
+				.append(",\"permissions\":").append(namesJson(role.getPermissions()))
+				.append('}');
+		}
+		return sb.append(']').toString();
+	}
+
+	private static String namesJson(Collection<? extends Enum<?>> values)
+	{
+		List<String> names = new ArrayList<String>();
+		for (Enum<?> value : values)
+		{
+			names.add(value.name());
+		}
+		return stringsJson(names);
+	}
+
+	private static String stringsJson(Collection<String> values)
+	{
+		StringBuilder sb = new StringBuilder("[");
+		for (String value : values)
+		{
+			if (sb.length() > 1)
+			{
+				sb.append(',');
+			}
+			sb.append(quote(value));
 		}
 		return sb.append(']').toString();
 	}
@@ -350,6 +528,9 @@ public class WebServer {
 				+ ",\"minBalance\":" + acc.getMinBalance()
 				+ ",\"withdrawLimit\":" + (acc instanceof SavingsAccount ? ((SavingsAccount) acc).getMaxWithLimit() : "null")
 				+ ",\"netBalance\":" + (acc instanceof SavingsAccount ? ((SavingsAccount) acc).getNetBalance() : "null")
+				+ ",\"interestRate\":" + (acc instanceof InterestBearing ? ((InterestBearing) acc).getInterestRate() : "null")
+				+ ",\"monthlyInterest\":" + (acc instanceof InterestBearing ? ((InterestBearing) acc).getMonthlyInterest() : "null")
+				+ ",\"monthlyFee\":" + (acc instanceof FeeCharging ? ((FeeCharging) acc).getMonthlyFee() : "null")
 				+ ",\"extra\":" + quote(extraOf(acc))
 				+ ",\"details\":" + quote(acc.getDetails()) + "}";
 	}
@@ -372,11 +553,15 @@ public class WebServer {
 		return "";
 	}
 
-	private static String transactionsJson()
+	private static String transactionsJson(User user)
 	{
 		StringBuilder sb = new StringBuilder("[");
 		for (Transaction t : FileIO.bank.getTransactions())
 		{
+			if (!user.canAccess(t.getAccNum()))
+			{
+				continue;
+			}
 			if (sb.length() > 1)
 			{
 				sb.append(',');

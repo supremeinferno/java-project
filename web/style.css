@@ -202,7 +202,7 @@ a { color: var(--brand); }
 .field { display: block; margin-bottom: 18px; }
 .field > span { display: block; font-size: 13px; font-weight: 600; margin-bottom: 7px; }
 .field small { display: block; margin-top: 6px; color: var(--muted); font-size: 12.5px; }
-input {
+input, select {
 	width: 100%;
 	min-height: 44px;
 	padding: 0 13px;
@@ -213,8 +213,9 @@ input {
 	font: inherit;
 	transition: border-color .15s, box-shadow .15s;
 }
-input:hover { border-color: var(--faint); }
-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); }
+input:hover, select:hover { border-color: var(--faint); }
+input.input-sm { min-height: 32px; width: 180px; font-size: 13px; }
+input:focus, select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); }
 input::placeholder { color: var(--faint); }
 .input-prefix { position: relative; }
 .input-prefix > b { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 600; pointer-events: none; }
@@ -596,6 +597,12 @@ td.actions .btn + .btn { margin-left: 4px; }
 .side-note h3 { color: var(--text); font-size: 14px; margin-bottom: 8px; }
 .side-note ul { margin: 0; padding-left: 18px; }
 .side-note li + li { margin-top: 6px; }
+.form-title { margin-bottom: 16px; }
+
+/* role badge on the users page: the dot shows the role */
+.role-ADMIN { --type-color: var(--out); }
+.role-EMPLOYEE { --type-color: var(--brand); }
+.role-CUSTOMER { --type-color: var(--in); }
 
 .type-picker { border: 0; padding: 0; margin: 0 0 22px; min-width: 0; }
 .type-picker legend { font-size: 13px; font-weight: 600; margin-bottom: 8px; padding: 0; }

@@ -36,6 +36,9 @@
 	<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
 	<symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M10.6 5.1A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-2.7 3.6M6.6 6.6C3.9 8.3 2 12 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18"/></symbol>
 	<symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+	<symbol id="i-users" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+	<symbol id="i-percent" viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></symbol>
+	<symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></symbol>
 </svg>
 
 <!-- ================= login ================= -->
@@ -56,11 +59,11 @@
 	<section class="login-panel">
 		<form id="login-form" class="login-card" autocomplete="off">
 			<h2>Welcome back</h2>
-			<p class="muted">Log in to the bank's admin console.</p>
+			<p class="muted">Staff and customers log in here. What you can do depends on your role.</p>
 			<p class="form-error" id="login-error" role="alert"></p>
 			<label class="field">
 				<span>Username</span>
-				<input name="username" value="admin" required>
+				<input name="username" required autocomplete="username" placeholder="e.g. admin">
 			</label>
 			<label class="field">
 				<span>Password</span>
@@ -89,18 +92,20 @@
 			</div>
 			<div class="nav-group">
 				<span class="nav-label">Money</span>
-				<a href="#deposit" data-route="deposit"><svg class="icon"><use href="#i-in"/></svg>Deposit</a>
-				<a href="#withdraw" data-route="withdraw"><svg class="icon"><use href="#i-out"/></svg>Withdraw</a>
-				<a href="#transfer" data-route="transfer"><svg class="icon"><use href="#i-transfer"/></svg>Transfer</a>
+				<a href="#deposit" data-route="deposit" data-perm="DEPOSIT"><svg class="icon"><use href="#i-in"/></svg>Deposit</a>
+				<a href="#withdraw" data-route="withdraw" data-perm="WITHDRAW"><svg class="icon"><use href="#i-out"/></svg>Withdraw</a>
+				<a href="#transfer" data-route="transfer" data-perm="TRANSFER"><svg class="icon"><use href="#i-transfer"/></svg>Transfer</a>
 			</div>
 			<div class="nav-group">
 				<span class="nav-label">Manage</span>
-				<a href="#open" data-route="open"><svg class="icon"><use href="#i-open"/></svg>Open account</a>
+				<a href="#open" data-route="open" data-perm="OPEN_ACCOUNT"><svg class="icon"><use href="#i-open"/></svg>Open account</a>
+				<a href="#users" data-route="users" data-perm="MANAGE_USERS"><svg class="icon"><use href="#i-users"/></svg>Users &amp; roles</a>
+				<a href="#password" data-route="password"><svg class="icon"><use href="#i-key"/></svg>Change password</a>
 			</div>
 		</nav>
 		<div class="sidebar-foot">
-			<span class="avatar" aria-hidden="true">A</span>
-			<div><b>admin</b><span>Bank manager</span></div>
+			<span class="avatar" id="user-avatar" aria-hidden="true"></span>
+			<div><b id="user-name"></b><span id="user-role"></span></div>
 			<button id="logout" title="Log out" aria-label="Log out"><svg class="icon"><use href="#i-logout"/></svg></button>
 		</div>
 	</aside>
@@ -126,7 +131,7 @@
 			<section data-view="dashboard" hidden>
 				<div class="hero">
 					<div class="hero-text">
-						<span class="eyebrow">Total holdings</span>
+						<span class="eyebrow" id="hero-label">Total holdings</span>
 						<div class="hero-value" id="hero-total">₹0</div>
 						<div class="hero-meta">
 							<div><span>Accounts</span><b id="hero-count">0</b></div>
@@ -134,9 +139,10 @@
 							<div><span>Transactions today</span><b id="hero-today">0</b></div>
 						</div>
 						<div class="hero-actions">
-							<a class="btn btn-primary" href="#open"><svg class="icon"><use href="#i-plus"/></svg>Open account</a>
-							<a class="btn" href="#transfer"><svg class="icon"><use href="#i-transfer"/></svg>Transfer</a>
-							<a class="btn" href="#deposit"><svg class="icon"><use href="#i-in"/></svg>Deposit</a>
+							<a class="btn btn-primary" href="#open" data-perm="OPEN_ACCOUNT"><svg class="icon"><use href="#i-plus"/></svg>Open account</a>
+							<a class="btn" href="#transfer" data-perm="TRANSFER"><svg class="icon"><use href="#i-transfer"/></svg>Transfer</a>
+							<a class="btn" href="#deposit" data-perm="DEPOSIT"><svg class="icon"><use href="#i-in"/></svg>Deposit</a>
+							<button class="btn" id="month-end" data-perm="RUN_MONTH_END"><svg class="icon"><use href="#i-percent"/></svg>Run month-end</button>
 						</div>
 					</div>
 					<figure class="hero-3d" style="margin:0">
@@ -189,7 +195,7 @@
 					</div>
 					<div class="form-actions">
 						<button class="btn" id="export-csv"><svg class="icon"><use href="#i-download"/></svg>Export CSV</button>
-						<a class="btn btn-primary" href="#open"><svg class="icon"><use href="#i-plus"/></svg>Open account</a>
+						<a class="btn btn-primary" href="#open" data-perm="OPEN_ACCOUNT"><svg class="icon"><use href="#i-plus"/></svg>Open account</a>
 					</div>
 				</div>
 				<div class="card card-flush">
@@ -260,6 +266,11 @@
 							<span id="extra-label">Details</span>
 							<input name="extra" required>
 						</label>
+						<label class="field">
+							<span>Customer login (optional)</span>
+							<input name="owner" autocomplete="off" placeholder="e.g. priya">
+							<small>The customer with this username will see the account when they log in.</small>
+						</label>
 						<div class="form-actions">
 							<button class="btn btn-primary btn-lg" type="submit">Open account</button>
 							<button class="btn btn-ghost btn-lg" type="reset">Reset</button>
@@ -280,8 +291,8 @@
 						<p class="muted" id="money-subtitle"></p>
 					</div>
 					<nav class="segmented" aria-label="Deposit or withdraw">
-						<a href="#deposit" data-mode="deposit">Deposit</a>
-						<a href="#withdraw" data-mode="withdraw">Withdraw</a>
+						<a href="#deposit" data-mode="deposit" data-perm="DEPOSIT">Deposit</a>
+						<a href="#withdraw" data-mode="withdraw" data-perm="WITHDRAW">Withdraw</a>
 					</nav>
 				</div>
 				<div class="form-layout">
@@ -342,8 +353,83 @@
 							<li>The sender's minimum balance must stay in the account.</li>
 							<li>Savings and Student accounts have a maximum per withdrawal, and that applies to transfers too.</li>
 							<li>Both accounts get an entry in their history.</li>
+							<li data-perm-missing="VIEW_ALL_ACCOUNTS">You can send money from your own accounts to any account at the bank.</li>
 						</ul>
 					</aside>
+				</div>
+			</section>
+
+			<!-- ===== users & roles (administrators) ===== -->
+			<section data-view="users" hidden>
+				<div class="page-head">
+					<div>
+						<h1>Users &amp; roles</h1>
+						<p class="muted">Logins for staff and customers. A role decides what each login can do.</p>
+					</div>
+				</div>
+				<div class="card card-flush">
+					<div class="table-wrap"><table id="users-table"></table></div>
+				</div>
+				<div class="form-layout">
+					<form id="user-form" class="card" autocomplete="off">
+						<h2 class="form-title">Add a login</h2>
+						<p class="form-error" role="alert"></p>
+						<label class="field">
+							<span>Username</span>
+							<input name="username" required placeholder="e.g. priya" autocomplete="off">
+						</label>
+						<label class="field">
+							<span>Password</span>
+							<input name="password" type="password" required minlength="5" autocomplete="new-password">
+							<small>At least 5 characters. Only a salted hash is stored.</small>
+						</label>
+						<label class="field">
+							<span>Role</span>
+							<select name="role" id="role-select"></select>
+						</label>
+						<label class="field" id="user-accounts-field">
+							<span>Accounts (customers only)</span>
+							<input name="accounts" placeholder="e.g. 10001, 10004">
+							<small>Account numbers this customer owns, separated by commas.</small>
+						</label>
+						<div class="form-actions">
+							<button class="btn btn-primary btn-lg" type="submit">Add login</button>
+						</div>
+					</form>
+					<aside class="side-note">
+						<h3>What each role can do</h3>
+						<ul id="role-rules"></ul>
+					</aside>
+				</div>
+			</section>
+
+			<!-- ===== change password ===== -->
+			<section data-view="password" hidden>
+				<div class="page-head">
+					<div>
+						<h1>Change password</h1>
+						<p class="muted">For your own login.</p>
+					</div>
+				</div>
+				<div class="form-layout">
+					<form id="password-form" class="card" autocomplete="off">
+						<p class="form-error" role="alert"></p>
+						<label class="field">
+							<span>Current password</span>
+							<input name="current" type="password" required autocomplete="current-password">
+						</label>
+						<label class="field">
+							<span>New password</span>
+							<input name="password" type="password" required minlength="5" autocomplete="new-password">
+						</label>
+						<label class="field">
+							<span>Repeat new password</span>
+							<input name="repeat" type="password" required minlength="5" autocomplete="new-password">
+						</label>
+						<div class="form-actions">
+							<button class="btn btn-primary btn-lg" type="submit">Change password</button>
+						</div>
+					</form>
 				</div>
 			</section>
 

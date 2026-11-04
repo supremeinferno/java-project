@@ -2,11 +2,14 @@ package Bank;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 
 import Exceptions.AccNotFound;
 import Exceptions.InvalidAmount;
@@ -22,6 +25,10 @@ public class Bank implements Serializable {
 	private int nextAccountNumber = FIRST_ACCOUNT_NUMBER;
 	// not final: a bank saved before history existed loads with null here, see readObject
 	private ArrayList<Transaction> transactions = new ArrayList<Transaction>();
+	// keyed by lower-case username, so names are unique ignoring case; null in a bank saved before logins existed
+	private LinkedHashMap<String, User> users = new LinkedHashMap<String, User>();
+	// the last month runMonthEnd() was run for; null until the first run
+	private YearMonth lastMonthEnd;
 
 	/**
 	 * Opens an account of the given type. {@code extra} is the type-specific value:
@@ -128,6 +135,52 @@ public class Bank implements Serializable {
 		return acc;
 	}
 
+	/**
+	 * Credits a month's interest to every {@link InterestBearing} account and takes the fee from every
+	 * {@link FeeCharging} one. Each account type decides its own rate or fee; this method only asks.
+	 *
+	 * @throws IllegalArgumentException if it has already been run this month
+	 */
+	public MonthEndResult runMonthEnd()
+	{
+		YearMonth month = YearMonth.now();
+		if (month.equals(lastMonthEnd))
+		{
+			throw new IllegalArgumentException("Month-end has already been run for " + month);
+		}
+		MonthEndResult result = new MonthEndResult(month);
+		for (BankAccount acc : accounts.values())
+		{
+			if (acc instanceof InterestBearing)
+			{
+				double interest = ((InterestBearing) acc).getMonthlyInterest();
+				if (interest > 0)
+				{
+					acc.adjust(interest);
+					record(Transaction.Kind.INTEREST, acc, interest, null);
+					result.addInterest(interest);
+				}
+			}
+			if (acc instanceof FeeCharging)
+			{
+				double fee = ((FeeCharging) acc).getMonthlyFee();
+				if (fee > 0)
+				{
+					acc.adjust(-fee);
+					record(Transaction.Kind.FEE, acc, fee, null);
+					result.addFee(fee);
+				}
+			}
+		}
+		lastMonthEnd = month;
+		return result;
+	}
+
+	/** The last month that month-end was run for, or null if never. */
+	public YearMonth getLastMonthEnd() {
+		return lastMonthEnd;
+	}
+
 	private void record(Transaction.Kind kind, BankAccount acc, double amt, String other)
 	{
 		transactions.add(new Transaction(transactions.size() + 1, kind, acc, amt, other));
@@ -154,6 +207,114 @@ public class Bank implements Serializable {
 		{
 			transactions = new ArrayList<Transaction>();
 		}
+		if (users == null)
+		{
+			users = new LinkedHashMap<String, User>();
+		}
+	}
+
+	// ---- logins
+
+	/**
+	 * Adds a login. {@code accNums} links a customer to their accounts and must be empty for staff.
+	 * Nothing changes if any value is invalid.
+	 *
+	 * @throws IllegalArgumentException if a value is invalid or the username is taken
+	 */
+	public User addUser(String username, String password, Role role, Collection<String> accNums) throws AccNotFound
+	{
+		User user = new User(username, password, role);
+		if (findUser(user.getUsername()) != null)
+		{
+			throw new IllegalArgumentException("The username " + user.getUsername() + " is taken");
+		}
+		user.setAccounts(checkLinks(user, accNums));
+		users.put(key(user.getUsername()), user);
+		return user;
+	}
+
+	public User findUser(String username)
+	{
+		return username == null ? null : users.get(key(username));
+	}
+
+	private User getUser(String username)
+	{
+		User user = findUser(username);
+		if (user == null)
+		{
+			throw new IllegalArgumentException("There is no login " + username);
+		}
+		return user;
+	}
+
+	/** Removes a login; the last administrator cannot be removed, or nobody could manage the bank. */
+	public User removeUser(String username)
+	{
+		User user = getUser(username);
+		if (user.getRole() == Role.ADMIN && countUsers(Role.ADMIN) == 1)
+		{
+			throw new IllegalArgumentException("Keep at least one administrator");
+		}
+		users.remove(key(user.getUsername()));
+		return user;
+	}
+
+	/** Replaces the accounts linked to a customer. */
+	public void setUserAccounts(String username, Collection<String> accNums) throws AccNotFound
+	{
+		User user = getUser(username);
+		user.setAccounts(checkLinks(user, accNums));
+	}
+
+	/** Links one more account to a customer, e.g. one just opened for them. */
+	public void linkAccount(String username, String accNum) throws AccNotFound
+	{
+		User user = getUser(username);
+		user.linkAccount(checkLinks(user, Collections.singleton(accNum)).iterator().next());
+	}
+
+	/** Trims the numbers and checks that they may be linked; an existing link to a closed account may stay. */
+	private LinkedHashSet<String> checkLinks(User user, Collection<String> accNums) throws AccNotFound
+	{
+		LinkedHashSet<String> result = new LinkedHashSet<String>();
+		for (String accNum : accNums)
+		{
+			String n = accNum.trim();
+			if (!user.owns(n) && findAccount(n) == null)
+			{
+				throw new AccNotFound("Account " + n + " not found");
+			}
+			result.add(n);
+		}
+		if (!result.isEmpty() && user.getRole() != Role.CUSTOMER)
+		{
+			throw new IllegalArgumentException("Only customers are linked to accounts; staff see every account");
+		}
+		return result;
+	}
+
+	private int countUsers(Role role)
+	{
+		int n = 0;
+		for (User user : users.values())
+		{
+			if (user.getRole() == role)
+			{
+				n++;
+			}
+		}
+		return n;
+	}
+
+	private static String key(String username)
+	{
+		return username.trim().toLowerCase(Locale.ROOT);
+	}
+
+	/** Read-only view of all logins in the order they were added. */
+	public Collection<User> getUsers() {
+		return Collections.unmodifiableCollection(users.values());
 	}
 
 	/** Read-only view of all accounts in the order they were opened. */

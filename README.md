@@ -35,7 +35,7 @@
 
 ## Overview
 
-Banking System automates the everyday work of a bank branch. Staff sign in and can open accounts, move money and review every transaction. All rules (minimum balances, withdrawal limits, valid amounts) are enforced on the server, and every change is saved immediately.
+Banking System automates the everyday work of a bank branch. Administrators, employees and customers sign in, and each role sees and does only what it is allowed to: staff open accounts, move money and review every transaction, while customers see and use only their own accounts. All rules (minimum balances, withdrawal limits, valid amounts) are enforced on the server, and every change is saved immediately.
 
 The backend uses only the Java standard library: the HTTP server built into the JDK and Java serialization for storage. The front end is plain HTML, CSS and JavaScript modules with no build step, so the project runs anywhere Java runs.
 
@@ -46,7 +46,7 @@ The backend uses only the Java standard library: the HTTP server built into the 
 
 **Accounts**
 - Open Savings, Current and Student accounts; the form adapts to the details each type needs
-- Account page with a card, balance, rules, a 5% interest projection and full history
+- Account page with a card, balance, rules, next month's interest or fee, and full history
 - Search, sort and filter by type; export the list to CSV
 - Close an account with confirmation; the remaining balance is paid out and the number is never reused
 
@@ -54,6 +54,27 @@ The backend uses only the Java standard library: the HTTP server built into the 
 - Deposit, withdraw and transfer between accounts
 - Live preview of the account holder and the available balance while typing an account number
 - Complete activity log for the whole bank, filterable by kind
+
+**Interest & fees**
+- Administrators run month-end once a month from the dashboard
+- Savings accounts earn 5% a year and Student accounts 4%, paid monthly
+- Current accounts pay a ₹500 monthly fee when below ₹25,000; the fee never takes them below their minimum balance
+- Each payment appears in the account's history and under **Interest & fees** in the activity log
+
+**Users & roles**
+- Three roles: Administrator, Bank employee and Customer; permissions are checked by the server on every request
+- Customers are linked to their accounts and see only those; they can send money from them to any account
+- Administrators add and delete logins and link customers to accounts; everyone can change their own password
+- Passwords are stored as salted PBKDF2 hashes
+
+| Permission | Administrator | Bank employee | Customer |
+|---|:-:|:-:|:-:|
+| See accounts | All | All | Own |
+| Open accounts, deposit, withdraw | ✓ | ✓ | |
+| Transfer | ✓ | ✓ | From own accounts |
+| Close accounts | ✓ | | |
+| Run month-end | ✓ | | |
+| Manage logins | ✓ | | |
 
 **Dashboard**
 - Total holdings, account count, average balance and today's activity
@@ -69,11 +90,11 @@ The backend uses only the Java standard library: the HTTP server built into the 
 
 ### Account rules
 
-| Type | Minimum balance | Required when opening | Maximum per withdrawal |
-|---|---|---|---|
-| Savings | ₹2,000 | Maximum withdraw limit | Set when opening |
-| Current | ₹5,000 | Trade licence number | No limit |
-| Student | ₹100 | Institution name | ₹20,000 |
+| Type | Minimum balance | Required when opening | Maximum per withdrawal | Month-end |
+|---|---|---|---|---|
+| Savings | ₹2,000 | Maximum withdraw limit | Set when opening | 5% a year interest |
+| Current | ₹5,000 | Trade licence number | No limit | ₹500 fee below ₹25,000 |
+| Student | ₹100 | Institution name | ₹20,000 | 4% a year interest |
 
 Withdrawals and transfers can never take an account below its minimum balance.
 
@@ -102,7 +123,7 @@ javac -d bin $(find src -name '*.java')
 java -cp bin WebApplication
 ```
 
-The browser opens at http://localhost:8080. Sign in with `admin` / `admin` (see [Configuration](#configuration) to change it). Pass a port number to use another port: `java -cp bin WebApplication 9000`.
+The browser opens at http://localhost:8080. Sign in with `admin` / `admin` (see [Configuration](#configuration) to change it), then add employee and customer logins on the **Users & roles** page. Pass a port number to use another port: `java -cp bin WebApplication 9000`.
 
 **VS Code:** open the folder with the *Extension Pack for Java* and run **Banking Website** from the Run and Debug panel.
 
@@ -114,8 +135,8 @@ All settings are environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `ADMIN_USER` | `admin` | Login username |
-| `ADMIN_PASSWORD` | `admin` | Login password. **Always set this on a public server.** |
+| `ADMIN_USER` | `admin` | Username of the first administrator, created when the bank has no logins yet |
+| `ADMIN_PASSWORD` | `admin` | That administrator's password (at least 5 characters). **Always set this on a public server.** Read only when the first administrator is created; after that, change passwords on the website |
 | `PORT` | `8080` | Port to listen on |
 | `HOST` | localhost only | Interface to bind; the Docker image uses `0.0.0.0` |
 | `DATABASE_URL` | not set | PostgreSQL connection string (`postgresql://user:password@host/db?sslmode=require`). When set, data is stored in the database instead of the `data` file, so it survives restarts |
@@ -132,7 +153,7 @@ The repository includes a multi-stage `Dockerfile` and a Render blueprint (`rend
 2. Choose **New → Blueprint** and select this repository.
 3. Enter an `ADMIN_PASSWORD` when prompted and click **Apply**.
 
-Every push to `main` redeploys automatically. To change the password later, edit `ADMIN_PASSWORD` in the service's **Environment** tab.
+Every push to `main` redeploys automatically. To change the password later, use **Change password** on the website (with `DATABASE_URL` set; without it, data and logins reset on every restart and the administrator is created again from `ADMIN_PASSWORD`).
 
 **Any Docker host**
 
@@ -173,13 +194,13 @@ Browser ──HTTP/JSON──▶ WebServer ──▶ Bank (domain model) ──�
 
 | Package | Responsibility |
 |---|---|
-| `src/Bank` | Domain model. `Bank` holds the accounts in a map and records every change as a `Transaction`. `BankAccount` is the abstract base of `SavingsAccount`, `CurrentAccount` and `StudentAccount`. `AccountType` holds each type's rules, so a new type needs only an enum entry and a subclass. |
-| `src/Exceptions` | Checked exceptions: `AccNotFound`, `InvalidAmount`, `MaxBalance` (below minimum balance), `MaxWithdraw` (over the limit). |
+| `src/Bank` | Domain model. `Bank` holds the accounts and the logins (`User`) in maps and records every change as a `Transaction`. A `User` has a `Role`, which grants a fixed set of `Permission`s. Savings and Student accounts implement the `InterestBearing` interface and Current accounts implement `FeeCharging`; `Bank.runMonthEnd()` applies both without knowing the account types. `BankAccount` is the abstract base of `SavingsAccount`, `CurrentAccount` and `StudentAccount`. `AccountType` holds each type's rules, so a new type needs only an enum entry and a subclass. |
+| `src/Exceptions` | Checked exceptions: `AccNotFound`, `InvalidAmount`, `MaxBalance` (below minimum balance), `MaxWithdraw` (over the limit), `AccessDenied` (role or account not allowed). |
 | `src/Data` | `FileIO` loads and saves the bank: to PostgreSQL through `Database` when `DATABASE_URL` is set, otherwise to the `data` file (written to a temporary file first, so a failed save never corrupts existing data). |
-| `src/Web` | `WebServer` serves the front end and the JSON API and checks the session on every request. `WebApplication` is the entry point. |
+| `src/Web` | `WebServer` serves the front end and the JSON API and checks the session and the user's permissions on every request. `WebApplication` is the entry point. |
 | `web` | Front end: `app.js` (pages and routing), `chart.js` (money in & out chart), `scene3d.js` (three.js scenes). |
 
-**Security:** sessions use random 192-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, marked `Secure` behind HTTPS. Static file paths are normalized and confined to the `web` folder, request bodies are size-limited, and all user content is escaped before it's rendered.
+**Security:** passwords are stored as salted PBKDF2-HMAC-SHA256 hashes. Sessions use random 192-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, marked `Secure` behind HTTPS. Static file paths are normalized and confined to the `web` folder, request bodies are size-limited, and all user content is escaped before it's rendered.
 
 ## API reference
 
@@ -188,14 +209,20 @@ Browser ──HTTP/JSON──▶ WebServer ──▶ Bank (domain model) ──�
 | `POST` | `/api/login` | `username`, `password` | Sign in and receive a session cookie |
 | `POST` | `/api/logout` | | Sign out |
 | `GET` | `/api/types` | | Account types and their rules |
-| `GET` | `/api/bank` | | All accounts and transactions |
-| `POST` | `/api/accounts` | `type`, `name`, `balance`, `extra` | Open an account |
+| `GET` | `/api/bank` | | The logged-in user, and the accounts and transactions they may see |
+| `POST` | `/api/password` | `current`, `password` | Change your own password |
+| `POST` | `/api/accounts` | `type`, `name`, `balance`, `extra`, `owner` (optional customer login) | Open an account |
 | `POST` | `/api/deposit` | `account`, `amount` | Deposit |
 | `POST` | `/api/withdraw` | `account`, `amount` | Withdraw |
 | `POST` | `/api/transfer` | `from`, `to`, `amount` | Transfer between accounts |
 | `POST` | `/api/close` | `account` | Close an account |
+| `POST` | `/api/month-end` | | Pay interest and take fees for this month, once a month (administrators) |
+| `GET` | `/api/users` | | Logins and roles (administrators) |
+| `POST` | `/api/users` | `username`, `password`, `role`, `accounts` | Add a login (administrators) |
+| `POST` | `/api/users/accounts` | `username`, `accounts` | Set a customer's accounts (administrators) |
+| `POST` | `/api/users/delete` | `username` | Delete a login (administrators) |
 
-Parameters are sent as `application/x-www-form-urlencoded`. Every endpoint except `login` and `types` needs a session. Errors return `{"error": "message"}` with status `400`, `401` or `404`.
+Parameters are sent as `application/x-www-form-urlencoded`. Every endpoint except `login` and `types` needs a session, and each needs the permission its role table above shows. Errors return `{"error": "message"}` with status `400`, `401` (not logged in), `403` (role not allowed, or not the customer's account) or `404`.
 
 ## Project structure
 
@@ -218,8 +245,9 @@ Parameters are sent as `application/x-www-form-urlencoded`. Every endpoint excep
 
 - [x] PostgreSQL storage so data survives restarts
 - [ ] Store accounts and transactions as separate tables for reporting
-- [ ] Multiple staff accounts with roles and hashed passwords
-- [ ] Monthly interest for Savings and Student accounts
+- [x] Multiple logins with roles (administrator, employee, customer) and hashed passwords
+- [x] Monthly interest for Savings and Student accounts, and fees for Current accounts
+- [ ] Loans with EMI schedules
 - [ ] Printable statements and transaction receipts
 - [ ] Custom domain for the live site
 

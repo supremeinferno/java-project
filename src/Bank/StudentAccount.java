@@ -4,6 +4,7 @@ public class StudentAccount extends SavingsAccount {
 
 	private static final long serialVersionUID = 2L;
 	private static final double MAX_WITHDRAW = 20000;
+	private static final double INTEREST_RATE = 0.04;
 	private final String institutionName;
 
 	public StudentAccount(String accNum, String name, double balance, String institutionName) {
@@ -16,6 +17,11 @@ public class StudentAccount extends SavingsAccount {
 
 	public String getInstitutionName() {
 		return institutionName;
+	}
+
+	@Override
+	public double getInterestRate() {
+		return INTEREST_RATE;
 	}
 
 	@Override

@@ -3,10 +3,10 @@ import Exceptions.InvalidAmount;
 import Exceptions.MaxBalance;
 import Exceptions.MaxWithdraw;
 
-public class SavingsAccount extends BankAccount {
+public class SavingsAccount extends BankAccount implements InterestBearing {
 
 	private static final long serialVersionUID = 2L;
-	private static final float RATE = .05f;
+	private static final double INTEREST_RATE = 0.05;
 	private final double maxWithLimit;
 
 	public SavingsAccount(String accNum, String name, double balance, double maxWithLimit) {
@@ -21,9 +21,15 @@ public class SavingsAccount extends BankAccount {
 		this.maxWithLimit = maxWithLimit;
 	}
 
+	@Override
+	public double getInterestRate() {
+		return INTEREST_RATE;
+	}
+
+	/** The balance after one year of interest, for display. */
 	public double getNetBalance()
 	{
-		return getBalance() * (1 + RATE);
+		return getBalance() * (1 + getInterestRate());
 	}
 
 	public double getMaxWithLimit() {

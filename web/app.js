@@ -3,9 +3,11 @@ import { renderFlowChart } from "./chart.js";
 // ================================================================ state & helpers
 
 const state = {
+	user: null,         // { username, role, roleLabel, permissions, accounts }, see WebServer.json(User)
 	types: [],          // { id, label, minBalance, extraLabel }
 	accounts: [],       // see WebServer.json(BankAccount)
 	transactions: [],   // oldest first
+	lastMonthEnd: null, // "2026-11" once month-end has been run
 	accSearch: "",
 	typeFilter: "ALL",
 	sort: { key: "accNum", dir: 1 },
@@ -29,6 +31,8 @@ const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => 
 const sum = list => list.reduce((s, v) => s + v, 0);
 const findAccount = accNum => state.accounts.find(a => a.accNum === String(accNum || "").trim());
 const typeOf = id => state.types.find(t => t.id === id);
+/** True if the logged-in user's role has the permission (see Permission.java). The server checks again on every request. */
+const can = permission => Boolean(state.user && state.user.permissions.includes(permission));
 /** The type-specific details, formatted for people (the server's getDetails() prints raw doubles). */
 function detailsText(acc) {
 	const limit = acc.withdrawLimit === null ? "" : `Max ${money.format(acc.withdrawLimit)} per withdrawal`;
@@ -38,14 +42,17 @@ function detailsText(acc) {
 }
 const badge = acc => `<span class="badge type-${esc(acc.type)}">${esc(acc.typeLabel)}</span>`;
 
-const KIND_ICON = { OPEN: "open", DEPOSIT: "in", WITHDRAW: "out", TRANSFER_IN: "transfer", TRANSFER_OUT: "transfer", CLOSE: "close" };
+const KIND_ICON = { OPEN: "open", DEPOSIT: "in", WITHDRAW: "out", TRANSFER_IN: "transfer", TRANSFER_OUT: "transfer", CLOSE: "close", INTEREST: "percent", FEE: "percent" };
 const KIND_FILTERS = [
 	{ id: "ALL", label: "All", kinds: null },
 	{ id: "DEPOSIT", label: "Deposits", kinds: ["DEPOSIT"] },
 	{ id: "WITHDRAW", label: "Withdrawals", kinds: ["WITHDRAW"] },
 	{ id: "TRANSFER", label: "Transfers", kinds: ["TRANSFER_IN", "TRANSFER_OUT"] },
+	{ id: "MONTH_END", label: "Interest & fees", kinds: ["INTEREST", "FEE"] },
 	{ id: "LIFECYCLE", label: "Opened & closed", kinds: ["OPEN", "CLOSE"] },
 ];
+const percent = rate => `${+(rate * 100).toFixed(2)}%`;
+const monthLabel = ym => new Date(ym + "-01T00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
 function describe(t) {
 	if (t.kind === "TRANSFER_OUT") return `Transfer to ${t.otherAccNum}`;
@@ -74,8 +81,22 @@ async function api(path, data) {
 
 async function refresh() {
 	const data = await api("bank");
+	state.user = data.user;
 	state.accounts = data.accounts;
 	state.transactions = data.transactions;
+	state.lastMonthEnd = data.lastMonthEnd;
+	applyUser();
+}
+
+/** Shows who is logged in and hides what their role can't do. */
+function applyUser() {
+	const { username, roleLabel } = state.user;
+	$("#user-avatar").textContent = username[0].toUpperCase();
+	$("#user-name").textContent = username;
+	$("#user-role").textContent = roleLabel;
+	$$("[data-perm]").forEach(el => { el.hidden = !can(el.dataset.perm); });
+	$$("[data-perm-missing]").forEach(el => { el.hidden = can(el.dataset.permMissing); });
+	$("#hero-label").textContent = can("VIEW_ALL_ACCOUNTS") ? "Total holdings" : "Your balance";
 }
 
 /** Shows an error in the form's error box (or a toast); a lost session goes back to the login page. */
@@ -197,29 +218,34 @@ $("#toggle-password").addEventListener("click", () => {
 
 $("#logout").addEventListener("click", async () => {
 	await api("logout", {}).catch(() => {});
+	state.user = null;
 	state.accounts = [];
 	state.transactions = [];
 	showLogin();
 });
 
 // ================================================================ routing
-// #dashboard  #accounts  #account/10001  #activity  #open  #deposit[/10001]  #withdraw[/10001]  #transfer[/10001]
+// #dashboard  #accounts  #account/10001  #activity  #open  #deposit[/10001]  #withdraw[/10001]  #transfer[/10001]  #users  #password
+// perm: the permission a page needs; without it the dashboard is shown instead
 
 const ROUTES = {
 	dashboard: { view: "dashboard", nav: "dashboard", render: renderDashboard },
 	accounts: { view: "accounts", nav: "accounts", render: renderAccounts },
 	account: { view: "account", nav: "accounts", render: renderAccount },
 	activity: { view: "activity", nav: "activity", render: renderActivity },
-	open: { view: "open", nav: "open", render: showOpenForm },
-	deposit: { view: "money", nav: "deposit", render: arg => showMoneyForm("deposit", arg) },
-	withdraw: { view: "money", nav: "withdraw", render: arg => showMoneyForm("withdraw", arg) },
-	transfer: { view: "transfer", nav: "transfer", render: showTransferForm },
+	open: { view: "open", nav: "open", perm: "OPEN_ACCOUNT", render: showOpenForm },
+	deposit: { view: "money", nav: "deposit", perm: "DEPOSIT", render: arg => showMoneyForm("deposit", arg) },
+	withdraw: { view: "money", nav: "withdraw", perm: "WITHDRAW", render: arg => showMoneyForm("withdraw", arg) },
+	transfer: { view: "transfer", nav: "transfer", perm: "TRANSFER", render: showTransferForm },
+	users: { view: "users", nav: "users", perm: "MANAGE_USERS", render: renderUsers },
+	password: { view: "password", nav: "password", render: showPasswordForm },
 };
 let currentView = null;
 
 function route() {
 	const [name, arg] = decodeURIComponent(location.hash.slice(1)).split("/");
-	const r = ROUTES[name] || ROUTES.dashboard;
+	let r = ROUTES[name] || ROUTES.dashboard;
+	if (r.perm && !can(r.perm)) r = ROUTES.dashboard;
 	if (r.view !== currentView) {
 		$$("[data-view]").forEach(s => { s.hidden = s.dataset.view !== r.view; });
 		window.scrollTo(0, 0);
@@ -263,7 +289,7 @@ function renderDashboard() {
 	const recent = transactions.slice(-6).reverse();
 	$("#recent-feed").innerHTML = recent.length
 		? recent.map(feedItem).join("")
-		: `<li class="empty" style="display:block;border:0">No activity yet. <a href="#open">Open the first account</a>.</li>`;
+		: `<li class="empty" style="display:block;border:0">No activity yet.${can("OPEN_ACCOUNT") ? ` <a href="#open">Open the first account</a>.` : ""}</li>`;
 
 	renderFlowChart($("#flow-chart"), transactions, { money, moneyShort, showTooltip, hideTooltip });
 	if (towers) towers.update(accounts);
@@ -276,6 +302,29 @@ function feedItem(t) {
 		<span class="amt ${t.credit ? "credit-amt" : ""}">${signed(t)}<small>${dateTime.format(t.time)}</small></span>
 	</li>`;
 }
+
+$("#month-end").addEventListener("click", async () => {
+	const now = new Date();
+	const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+	if (state.lastMonthEnd === month) {
+		return toast(`Month-end has already been run for ${monthLabel(month)}`);
+	}
+	const ok = await confirmDialog(`Run month-end for ${monthLabel(month)}?`,
+		"Savings and Student accounts are paid a month's interest, and Current accounts below ₹25,000 are charged the monthly fee. "
+		+ "This can only be run once a month."
+		+ (state.lastMonthEnd ? ` Last run: ${monthLabel(state.lastMonthEnd)}.` : ""),
+		"Run month-end");
+	if (!ok) return;
+	try {
+		const r = await api("month-end", {});
+		await refresh();
+		renderDashboard();
+		toast(`${monthLabel(r.month)}: ${money.format(r.interestTotal)} interest to ${r.interestCount} accounts, `
+			+ `${money.format(r.feeTotal)} in fees from ${r.feeCount}`);
+	} catch (err) {
+		handleError(err);
+	}
+});
 
 let resizeTimer;
 window.addEventListener("resize", () => {
@@ -322,11 +371,13 @@ function renderAccounts() {
 			<td class="num strong">${money.format(a.balance)}</td>
 			<td class="details">${esc(detailsText(a))}</td>
 			<td class="actions">
-				<a class="btn btn-sm" href="#deposit/${esc(a.accNum)}">Deposit</a>
-				<a class="btn btn-sm" href="#withdraw/${esc(a.accNum)}">Withdraw</a>
+				${can("DEPOSIT") ? `<a class="btn btn-sm" href="#deposit/${esc(a.accNum)}">Deposit</a>` : ""}
+				${can("WITHDRAW") ? `<a class="btn btn-sm" href="#withdraw/${esc(a.accNum)}">Withdraw</a>` : ""}
+				${!can("DEPOSIT") && can("TRANSFER") ? `<a class="btn btn-sm" href="#transfer/${esc(a.accNum)}">Transfer</a>` : ""}
 			</td>
 		</tr>`).join("")
-		: `<tr><td class="empty" colspan="${COLUMNS.length + 1}">${state.accounts.length ? "No accounts match your search." : `No accounts yet. <a href="#open">Open one</a>.`}</td></tr>`;
+		: `<tr><td class="empty" colspan="${COLUMNS.length + 1}">${state.accounts.length ? "No accounts match your search."
+			: can("OPEN_ACCOUNT") ? `No accounts yet. <a href="#open">Open one</a>.` : "No accounts are linked to your login yet. Ask the bank to link them."}</td></tr>`;
 
 	$("#accounts-table").innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
 	$("#accounts-foot").textContent = `Showing ${rows.length} of ${state.accounts.length} accounts · ${money.format(sum(rows.map(a => a.balance)))} in total`;
@@ -394,7 +445,11 @@ function renderAccount(accNum) {
 	];
 	if (acc.withdrawLimit !== null) facts.push(["Max per withdrawal", money.format(acc.withdrawLimit)]);
 	if (acc.type !== "SAVINGS") facts.push([type.extraLabel, esc(acc.extra)]);
-	if (acc.netBalance !== null) facts.push(["Balance + 5% interest", money.format(acc.netBalance)]);
+	if (acc.interestRate !== null) {
+		facts.push(["Interest rate", `${percent(acc.interestRate)} a year`]);
+		facts.push(["Next month's interest", money.format(acc.monthlyInterest)]);
+	}
+	if (acc.monthlyFee !== null) facts.push(["Next month's fee", money.format(acc.monthlyFee)]);
 	if (opened) facts.push(["Opened on", longDate.format(opened.time)]);
 
 	body.innerHTML = `
@@ -415,17 +470,17 @@ function renderAccount(accNum) {
 				<div class="balance">${money.format(acc.balance)}</div>
 				<div class="facts">${facts.map(([k, v]) => `<div><span>${esc(k)}</span><b>${v}</b></div>`).join("")}</div>
 				<div class="actions">
-					<a class="btn btn-primary" href="#deposit/${esc(acc.accNum)}">${icon("in")}Deposit</a>
-					<a class="btn" href="#withdraw/${esc(acc.accNum)}">${icon("out")}Withdraw</a>
-					<a class="btn" href="#transfer/${esc(acc.accNum)}">${icon("transfer")}Transfer</a>
-					<button class="btn btn-danger-ghost" id="close-account">${icon("close")}Close account</button>
+					${can("DEPOSIT") ? `<a class="btn btn-primary" href="#deposit/${esc(acc.accNum)}">${icon("in")}Deposit</a>` : ""}
+					${can("WITHDRAW") ? `<a class="btn" href="#withdraw/${esc(acc.accNum)}">${icon("out")}Withdraw</a>` : ""}
+					${can("TRANSFER") ? `<a class="btn" href="#transfer/${esc(acc.accNum)}">${icon("transfer")}Transfer</a>` : ""}
+					${can("CLOSE_ACCOUNT") ? `<button class="btn btn-danger-ghost" id="close-account">${icon("close")}Close account</button>` : ""}
 				</div>
 			</div>
 		</div>
 		${historyCard(history, false)}`;
 
 	tiltCard($("#card-stage"), $("#bank-card"));
-	$("#close-account").addEventListener("click", () => closeAccount(acc));
+	if (can("CLOSE_ACCOUNT")) $("#close-account").addEventListener("click", () => closeAccount(acc));
 }
 
 function historyCard(list, showAccount) {
@@ -520,7 +575,9 @@ function buildOpenForm() {
 		</label>`).join("");
 	$("#type-rules").innerHTML = state.types.map(t =>
 		`<li><b>${esc(t.label)}</b>: keep at least ${money.format(t.minBalance)}; needs ${esc(t.extraLabel.toLowerCase())}.</li>`).join("")
-		+ `<li>Savings and Student accounts allow a fixed maximum per withdrawal and show their balance with 5% interest.</li>`;
+		+ `<li>Savings and Student accounts allow a fixed maximum per withdrawal.</li>`
+		+ `<li>At month-end, Savings accounts earn 5% a year and Student accounts 4%, paid monthly. `
+		+ `Current accounts pay a ₹500 fee in months they end below ₹25,000.</li>`;
 }
 
 /** Updates the hints and the last field for the chosen account type. */
@@ -556,6 +613,7 @@ openForm.addEventListener("submit", e => {
 			name: openForm.elements.name.value,
 			balance: openForm.balance.value,
 			extra: openForm.extra.value,
+			owner: openForm.owner.value.trim(),
 		});
 		await refresh();
 		toast(`Account ${account.accNum} opened for ${account.name}`);
@@ -572,6 +630,9 @@ function updatePreview(box, accNum, outgoing) {
 	box.classList.toggle("not-found", Boolean(n && !acc));
 	if (!n) {
 		box.innerHTML = "";
+	} else if (!acc && !outgoing && !can("VIEW_ALL_ACCOUNTS")) {
+		// a customer only gets their own accounts, so other people's can't be looked up here
+		box.textContent = `Account ${n}: the holder's details are private. Check the number before sending.`;
 	} else if (!acc) {
 		box.textContent = `No account with number ${n}.`;
 	} else {
@@ -654,6 +715,119 @@ transferForm.addEventListener("submit", e => {
 		toast(`Sent ${money.format(amount)} from ${from} to ${to}`);
 		transferForm.amount.value = "";
 		refreshTransferPreview();
+	});
+});
+
+// ================================================================ users & roles (administrators)
+
+const userForm = $("#user-form");
+const PERMISSION_LABELS = {
+	VIEW_ALL_ACCOUNTS: "see every account",
+	OPEN_ACCOUNT: "open accounts",
+	DEPOSIT: "deposit",
+	WITHDRAW: "withdraw",
+	TRANSFER: "transfer",
+	CLOSE_ACCOUNT: "close accounts",
+	RUN_MONTH_END: "run month-end",
+	MANAGE_USERS: "manage logins",
+};
+
+async function renderUsers() {
+	let data;
+	try {
+		data = await api("users");
+	} catch (err) {
+		return handleError(err);
+	}
+	const { users, roles } = data;
+	if (!userForm.elements.role.options.length) {
+		userForm.elements.role.innerHTML = roles.map(r => `<option value="${esc(r.id)}">${esc(r.label)}</option>`).join("");
+		userForm.elements.role.value = "CUSTOMER";
+		updateUserForm();
+	}
+	$("#role-rules").innerHTML = roles.map(r => {
+		const list = r.permissions.map(p => PERMISSION_LABELS[p] || p).join(", ");
+		const own = r.permissions.includes("VIEW_ALL_ACCOUNTS") ? "" : " (only from and on their own accounts)";
+		return `<li><b>${esc(r.label)}</b>: ${esc(list)}${own}.</li>`;
+	}).join("");
+
+	const rows = users.map(u => `<tr data-user="${esc(u.username)}">
+		<td class="strong">${esc(u.username)}${u.username === state.user.username ? ` <span class="sub-cell">You</span>` : ""}</td>
+		<td><span class="badge role-${esc(u.role)}">${esc(u.roleLabel)}</span></td>
+		<td>${u.role === "CUSTOMER"
+			? `<input class="input-sm" value="${esc(u.accounts.join(", "))}" aria-label="Accounts of ${esc(u.username)}" placeholder="e.g. 10001, 10004">
+				<button type="button" class="btn btn-sm" data-save>Save</button>`
+			: `<span class="muted">All accounts</span>`}</td>
+		<td class="actions">${u.username === state.user.username ? "" : `<button type="button" class="btn btn-sm btn-danger-ghost" data-delete>Delete</button>`}</td>
+	</tr>`).join("");
+	$("#users-table").innerHTML = `<thead><tr><th>Username</th><th>Role</th><th>Linked accounts</th><th><span hidden>Actions</span></th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+/** Account numbers only matter for customers; staff see every account. */
+function updateUserForm() {
+	const customer = userForm.elements.role.value === "CUSTOMER";
+	$("#user-accounts-field").hidden = !customer;
+	if (!customer) userForm.accounts.value = "";
+}
+userForm.elements.role.addEventListener("change", updateUserForm);
+
+userForm.addEventListener("submit", e => {
+	e.preventDefault();
+	submitting(userForm, async () => {
+		const { user } = await api("users", {
+			username: userForm.username.value.trim(),
+			password: userForm.password.value,
+			role: userForm.elements.role.value,
+			accounts: userForm.accounts.value,
+		});
+		userForm.username.value = "";
+		userForm.password.value = "";
+		userForm.accounts.value = "";
+		toast(`Added ${user.roleLabel.toLowerCase()} login ${user.username}`);
+		await renderUsers();
+	});
+});
+
+$("#users-table").addEventListener("click", async e => {
+	const row = e.target.closest("tr[data-user]");
+	if (!row) return;
+	const username = row.dataset.user;
+	try {
+		if (e.target.closest("[data-save]")) {
+			const { user } = await api("users/accounts", { username, accounts: $("input", row).value });
+			toast(`${user.username} is linked to ${user.accounts.length} account${user.accounts.length === 1 ? "" : "s"}`);
+			await renderUsers();
+		} else if (e.target.closest("[data-delete]")) {
+			const ok = await confirmDialog(`Delete login ${username}?`,
+				`${username} will be logged out and can't log in again. Their bank accounts are not touched.`, "Delete login");
+			if (!ok) return;
+			await api("users/delete", { username });
+			toast(`Deleted login ${username}`);
+			await renderUsers();
+		}
+	} catch (err) {
+		handleError(err);
+	}
+});
+
+// ================================================================ change password
+
+const passwordForm = $("#password-form");
+
+function showPasswordForm() {
+	passwordForm.reset();
+	$(".form-error", passwordForm).textContent = "";
+}
+
+passwordForm.addEventListener("submit", e => {
+	e.preventDefault();
+	submitting(passwordForm, async () => {
+		if (passwordForm.password.value !== passwordForm.repeat.value) {
+			throw new Error("The new passwords don't match");
+		}
+		await api("password", { current: passwordForm.current.value, password: passwordForm.password.value });
+		passwordForm.reset();
+		toast("Password changed");
 	});
 });
 
