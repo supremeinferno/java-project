@@ -3,9 +3,12 @@ import java.io.IOException;
 import java.net.BindException;
 import java.net.URI;
 import java.nio.file.Files;
+import java.util.Collections;
 
 import Bank.DemoData;
+import Bank.Role;
 import Data.FileIO;
+import Exceptions.AccNotFound;
 import Web.WebServer;
 
 /**
@@ -35,12 +38,30 @@ public class WebApplication {
 			System.err.println("Could not start: " + cause.getMessage());
 			System.exit(1);
 		}
-		if (FileIO.bank.size() == 0 && FileIO.bank.getTransactions().isEmpty() && "true".equals(System.getenv("DEMO_DATA")))
+		if (FileIO.bank.size() == 0 && FileIO.bank.getTransactions().isEmpty() && FileIO.bank.getUsers().isEmpty()
+				&& "true".equals(System.getenv("DEMO_DATA")))
 		{
 			// a fresh public deployment starts with demo accounts instead of an empty bank
 			FileIO.bank = DemoData.create();
 			FileIO.save();
 			System.out.println("Loaded demo data: " + FileIO.bank.size() + " accounts");
+		}
+		if (FileIO.bank.getUsers().isEmpty())
+		{
+			// the first start, or a bank saved before there were logins, gets one administrator;
+			// after that, logins are managed on the website and these variables are not read again
+			String user = env("ADMIN_USER", "admin");
+			try
+			{
+				FileIO.bank.addUser(user, env("ADMIN_PASSWORD", "admin"), Role.ADMIN, Collections.<String>emptyList());
+			}
+			catch (IllegalArgumentException | AccNotFound e)
+			{
+				System.err.println("Could not create the administrator from ADMIN_USER / ADMIN_PASSWORD: " + e.getMessage());
+				System.exit(1);
+			}
+			FileIO.save();
+			System.out.println("Created administrator login: " + user);
 		}
 		try
 		{
@@ -55,6 +76,12 @@ public class WebApplication {
 		String url = "http://localhost:" + port;
 		System.out.println("Banking System website running at " + url + "  (press Ctrl+C to stop)");
 		openBrowser(url);
+	}
+
+	private static String env(String name, String fallback)
+	{
+		String value = System.getenv(name);
+		return value == null || value.isEmpty() ? fallback : value;
 	}
 
 	private static void openBrowser(String url)

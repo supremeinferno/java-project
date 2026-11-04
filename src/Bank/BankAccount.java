@@ -47,6 +47,15 @@ public abstract class BankAccount implements Serializable {
 		balance -= amount;
 	}
 
+	/**
+	 * Adds money, or takes it with a negative amount, without the limits a customer's withdrawal has.
+	 * Only for month-end interest and fees, which never take the balance below the minimum.
+	 */
+	void adjust(double amount)
+	{
+		balance += amount;
+	}
+
 	private static void checkAmount(double amount) throws InvalidAmount
 	{
 		if (Double.isNaN(amount) || Double.isInfinite(amount) || amount <= 0)

@@ -10,7 +10,9 @@ public class Transaction implements Serializable {
 		WITHDRAW("Withdrawal", false),
 		TRANSFER_IN("Transfer in", true),
 		TRANSFER_OUT("Transfer out", false),
-		CLOSE("Account closed", false);
+		CLOSE("Account closed", false),
+		INTEREST("Interest", true),
+		FEE("Monthly fee", false);
 
 		private final String label;
 		private final boolean credit;
